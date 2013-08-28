@@ -1,0 +1,62 @@
+--- The central 'SKI' data structure with instance and common operations
+module birds.Ski where
+
+import Data.List
+
+--- representation of SKI expressions with variables and constants
+data SKI = S | K | I | V Char | C String | App SKI SKI
+
+infixl 7 `<>`
+
+{-- 
+    Embed the SKI syntax into Frege. The expression
+    > SKK(S(KS)K)x
+        can be written thus:
+    > S <> K <> K <> (S <> (K <> S) <> K) <> V 'x'
+    -}     
+(<>) = App
+
+
+{-- 
+    Something like
+    
+    > SKKy
+    
+    is represented as left leaning 'App' tree, but sometimes we
+    want to use the isomorphism with a list:
+    
+    > flat (App (App (App a b) c) d) = [a, b, c, d]
+    > flat p = [p] -- where p is not an App
+    
+    This only flattens the outermost 'App', of course.
+    Note that the result is never the empty list, as atomic SKI expressions
+    result in a singleton list.
+    -}
+flat = reverse . flat'
+    where flat' (App a b) = b:flat' a
+          flat' x         = [x]
+          
+--- The converse of 'flat', the following law holds:
+--- > unflat (flat x) == x
+--- Can be used like 
+--- > unflat (replicate 1000 I)
+unflat = foldl1 (<>) 
+
+
+
+--- literal equality, does not take substitutions in account
+derive Eq SKI
+
+--- raw show
+instance Show SKI where
+    show S = "S"
+    show K = "K"
+    show I = "I"
+    show (V  c) = display c
+    show (C  s) = if length s == 1 && !(s.charAt 0).isLowerCase
+                    then s
+                    else "#" ++ s ++ "#"
+    show app = show first ++ concatMap showsub rest where first:rest = flat app
+    
+    showsub (app@App{}) = "(" ++ show app ++ ")"
+    showsub ski = show ski 

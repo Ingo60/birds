@@ -1,0 +1,7 @@
+--- The interpreter for *birds*, a small language on top of the SKI calculus
+module birds.Main where
+
+import Data.List hiding(insert, lookup, delete, union)
+import Data.TreeMap
+
+
