@@ -1,0 +1,80 @@
+--- This is an undocumented module
+module birds.Def where
+
+import Data.TreeMap
+import Data.List(sortBy)
+import birds.Ski
+
+data Def = D { left, right, bird :: SKI }
+
+type DefTree = Tree String Def
+
+instance Show Def where
+    show D{left, right, bird} = show left ++ " = " ++ show right
+
+def tree left right = case fl of
+        C s:rest
+            | s `elem` ["I", "K", "S"] = Left ("We must not redefine basic bird " ++ s)
+            | !(all isVar rest)    = Left ("Left hand side must apply variables only")  
+            | Just a <- dupvars vl = Left ("Variable " ++ show a ++ " must occur only once in left hand side")
+            | bad <- filter (`notElem` vl) vr, !(null bad) 
+                                   = Left ("Right hand side has free variables: " 
+                                            ++ joined ", " (map display bad))
+            | !(null cr)           = Left ("Right hand side names unknown birds: "
+                                            ++ joined ", " (map display cr))
+            | otherwise = Right D{left, right, bird = make left sr}
+        _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name") 
+    where
+        fl = flat left
+        -- fr = flat right
+        vl = vars left
+        vr = vars right
+        sr = subst tree right
+        cr = combinators sr
+        dupvars [] = Nothing
+        dupvars (a:as) = if a `elem` as then Just a else dupvars as
+        isVar V{} = true
+        isVar _   = false
+
+subst :: DefTree -> SKI -> SKI                  
+subst tree (App a b) = App (subst tree a) (subst tree b)
+subst tree (it@C s) = case tree.lookupS s of
+    Just def -> def.bird
+    Nothing  -> it
+subst tree x = x
+
+--- Compute the SKI expression for a defined combinator.
+--- for example:
+--- > make (B<>f<>g<>h) := f <> (g <> h))
+--- will return
+--- > S <> (K <> S) <> K
+--- Hence,
+--- > B = S(KS)K
+make (C c) ski = ski
+make (App a (V b)) ski = make a (b `elimination` ski)
+make def _ = error ("not well formed: " ++ show def)
+
+{--
+    1.  I is a v elimination for v, becaue Iv = v
+    2.  If v does not occur in x, then Kx is a v-elimination, because Kxv = x
+    3.  If Y does not contain v, then Y is a v-elimination of Yv, becaue Yv=Yv
+    4.  in @yz@, the v-elimination is Sab where a is the
+        v elimination of y and b is the v-elimination of z
+        -}
+v `elimination` x  = case x of
+            V s         
+                | s == v    = I
+                | otherwise = (K <> x)
+            App y (V s) | s == v,
+                v `notElem` vars y = y
+            y | v `notElem` vars y = (K <> y)
+            App a b                = (S <> a' <> b') where
+                a' = v `elimination` a
+                b' = v `elimination` b
+                        
+nice tree ski = fold unsubst ski defs where
+    defs = (sortBy (comparing (length . show . Def.bird . snd)) . each) tree
+    unsubst x (k, def) 
+        | x == Def.bird def = C k
+        | App a b <- x = App (unsubst a (k, def)) (unsubst b (k, def))
+        | otherwise = x 

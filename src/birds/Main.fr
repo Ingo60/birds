@@ -4,35 +4,135 @@ module birds.Main where
 import Data.List hiding(insert, lookup, delete, union)
 import Data.TreeMap
 import birds.Ski
+import birds.Def
 
 data ConsoleReader = mutable native jline.ConsoleReader where
     native new :: () -> IO ConsoleReader throws IOException
     native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
-    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException 
-    
+    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException
+                      | ConsoleReader -> String -> IO (Maybe String) throws IOException
+
+data Global = St {
+        console  :: ConsoleReader,
+        lastLine :: String, 
+        lastResult :: SKI,
+        birds :: DefTree
+    }
+            
 main _ = do
         console <- ConsoleReader.new ()
-        console.setPrompt "ski> " 
-        forever (interaction console) 
+        console.setPrompt "ski> "
+        ref     <- IORef.new St{console, 
+                                lastLine="help", 
+                                lastResult=I, 
+                                birds = Tree.empty}
+        mapM_ (oneLine ref) [
+                ":(Bfgx)(f(gx))",   -- bluebird
+                ":(Txy)(yx)",       -- trush
+                ":(Uxy)(y(xxy))",   -- turing
+                ":(Vxyz)(zxy)",     -- virio
+                ": Y(UU)"            -- fix point combinator
+            ]
+        mapM_ println [
+            "",
+            "Enter expressions or combinator definitions or help for a command list.",
+            "Type CTRL-D to end this session.",
+            "",
+            ] 
+        forever (interaction ref) 
                 `catch` eof
                 `catch` ioex
                 `finally` println "See you again."
     where
-        interaction console = do
-            line <- ConsoleReader.readLine console
-            case line of
-                Just reply -> case parse reply of
-                    Left msg  -> stderr.println msg
-                    Right x -> println (eval x)
-                Nothing -> throwIO (EOFException.new "EOF")
-        prompt s = do
-            stdout.print s
-            stdout.flush
-            getLine
         eof :: EOFException -> IO ()
         eof _ = print "Good bye. "
         ioex :: IOException -> IO ()
         ioex _ = print "Sorry, we had an IO exception. "
 
+
+oneLine :: IORef Global -> String -> IO ()
+oneLine ref s = do
+    let (command, expr) = parseCommand s
+    command ref expr 
+
+interaction :: IORef Global -> IO ()
+interaction ref = do
+    state <- ref.get 
+    line <- ConsoleReader.readLine state.console
+    reply <- getReply ref line
+    oneLine ref reply
+    
+cmdEval  ref = cmdEvalWith ref eval
+cmdStep  ref s = do
+    cmdEvalWith ref step s
+    IORef.modify Global.{lastLine="step"} ref 
+cmdParse ref = cmdEvalWith ref id
+cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
+cmdEvalWith ref what "" = do
+    state <- ref.get
+    let result = what state.lastResult
+    println result
+    ref.put state.{lastResult=result}
+    
+cmdEvalWith ref what reply = do
+    state <- ref.get  
+    case parse reply of
+            Left msg  -> stderr.println msg
+            Right (App (App (C ":") left) right) -> do
+                case def state.birds left right of
+                    Left s -> stderr.println ("ERROR: " ++ s)
+                    Right d -> newdef ref d
+            Right x   -> do
+                let result = what (subst state.birds x)
+                println (nice state.birds result)
+                ref.put state.{lastResult=result}
+
+newdef :: IORef Global -> Def -> IO ()
+newdef ref d = do
+    state <- ref.get
+    let (C s) = head (flat d.left)
+        nt = brds.insert s d
+        todel = [ b | (b,d) <- each state.birds, s `elem` combinators d.right ]
+        brds = fold Tree.delete state.birds todel
+    unless (null todel) do
+        println ("Following birds were deleted, because they referenced " ++ s ++ ":")
+        println (joined ", " todel)
+    IORef.modify Global.{birds=nt} ref
+    IORef.modify Global.{lastResult=d.bird} ref
+    println (d.bird)
+
+cmdList :: IORef Global -> String -> IO ()
+cmdList ref s = do
+    state <- ref.get
+    case parse s of
+        Right (C s) -> case state.birds.lookupS s of
+            Just def -> println (show def)
+            Nothing  -> stderr.println("Bird " ++ s ++ " is unknown.")
+        _ -> do
+            mapM_ (println . show . snd) ((sortBy (comparing fst) . each) state.birds) 
+
+commands = [
+    (´^step\s*´, cmdStep),
+    (´^parse\s*´, cmdParse),
+    (´^eval\s*´, cmdEval),
+    (´^list\s*´, cmdList),
+    ]
+
+parseCommand s = try commands where
+    try ((m,x):ms) 
+        | s ~ m =  (x, (m.matcher s).replaceFirst "")
+        | otherwise = try ms 
+    try [] = (cmdEval, s) 
+
+getReply :: IORef Global -> Maybe String -> IO String
+getReply ref line = case line of
+        Just "" -> do
+            state <- ref.get
+            return state.lastLine
+        Just reply -> do
+            state <- ref.get
+            ref.put state.{lastLine = reply}
+            return reply
+        Nothing -> throwIO (EOFException.new "EOF")
 
 

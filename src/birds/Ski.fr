@@ -193,9 +193,9 @@ instance Show SKI where
     show K = "K"
     show I = "I"
     show (V  c) = display c
-    show (C  s) = if length s == 1 && !(s.charAt 0).isLowerCase
+    show (C  s) = if length s == 1 && (s.charAt 0).isLetterOrDigit
                     then s
-                    else "#" ++ s ++ "#"
+                    else s ++ " "
     show app = show first ++ concatMap showsub rest 
         where flapp = flat app
               first = head flapp
@@ -227,6 +227,10 @@ parse  = parse' . lex . unpacked  where
         | s >= 'a' && s <= 'z' = Atom (V s) : lex xs
         | s == '(' = LPAR : lex xs
         | s == ')' = RPAR : lex xs
+        | !s.isLetterOrDigit,
+            c:ys <- xs,                   -- allow ?Z, etc. 
+            c.isLetterOrDigit, 
+            !c.isLowerCase = Atom (C (packed [s,c])) : lex ys
         | otherwise = Atom (C s.display) : lex xs
         
     parse' = state0 []
