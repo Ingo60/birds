@@ -2,6 +2,7 @@
 module birds.Ski where
 
 import Data.List
+import Data.Monoid (Semigroup(mappend))
 
 --- representation of SKI expressions with variables and constants
 data SKI = S | K | I | V Char | C String | App SKI SKI
@@ -43,9 +44,148 @@ flat = reverse . flat'
 unflat = foldl1 (<>) 
 
 
+--- get the set of variables in an SKI expressions
+freevars = uniq . sort . vars
+
+--- get an unordered list of variables that occur in a SKI expressions, duplicates possible
+vars (V s)     = [s]
+vars (App a b) = vars a ++ vars b
+vars _ = []
+
+--- get an unordered list of combinator names that occur in a SKI expression
+combinators (C s) = [s]
+combinators (App a b) = combinators a ++ combinators b
+combinators _ = []
+
+{-- 
+    Reduce a SKI expression according to the following rules:
+    - A primitive expressions (I,K,S,V,C) reduces to itself
+    - @I <> a@ reduces to @a@
+    - @K <> x <> y@ reduces to @x@
+    - @S <> x <> y <> z@  reduces to   @x <> z <> (y <> z)@
+    - @a<>b@ reduces to reduced @c<>b@, where @c@ is the reduced @a@. 
+
+    Note that, if we have a<>b, b is not reduced.
+
+    The definition below is a bit complex, but we must avoid 
+    stack overflows on deeply nested expressions like
+    
+    >   unflat (replicate 5000 I)
+    
+    The reduction algorithm trades stack space against heap space, by
+    going down to the expression nested deepest on the left, while pushing
+    the right elements to a list (like 'flat'). Once the innermost expression
+    has been reduced, we have either a 'Var', a 'Const' or a basic combinator.
+    
+    If it is a basic combinator, then its effect on the argument list is 
+    computed, and the process continues until we have an atom that connot 
+    be applied to the list anymore. 
+    
+    For example 
+    
+    > II(KI)I                   
+    > (((II)(KI))I)             II(KI)I
+    > ((II)(KI))   [I]          II(KI)I
+    > (II) [KI,I]               II(KI)I
+    
+    Only at this point do we see that we can reduce II:
+    
+    > I [KI, I]                 I(KI)I
+    
+    The I pops the first argument off the list and lets it operate on the tail.
+    Now again, we have an expression of the form @a <> b@ on top:
+    
+    > (KI) [I]                  KII
+    > K [I, I]                  KII
+    
+    Now K can operate on the list, by throwing the second element away and
+    we continue to operate with the first I.
+     
+    > I []                      I
+    -}
+eval = evaluate false
+evaluate eager = unflat . reduce []
+    where
+        -- reduce acc ex | traceLn ("reduce: " ++ show ex ++ "  " ++ show acc) = undefined
+        -- first the basic laws
+        reduce acc (App I y)                    = reduce acc y
+        reduce acc (App (App K x) _)            = reduce acc x
+        reduce acc (App (App (App S f) g) h)    = reduce acc (f <> h <> (g <> h))
+        
+        -- Now the critical step to avoid too deeply nested left recursions.
+        -- The expression b is saved for later, and we continue with the left hand side
+        -- Since this is tail recursion, it will be a loop at runtime.
+        reduce acc (App a b)                    = reduce (b:acc) a
+        
+        -- At this point, the leftmost expression of the original
+        -- expression is not of the form @a<>b@ anymore and the arguments
+        -- are in the accumulator.
+        -- For example, when we had
+        --  (K <> K <> x) <> a <> b
+        -- we have now evaluated (K <> K <> x) to K (by equation 2)
+        -- and a,b are on the stack, so it looks like
+        --   reduce [a,b] K
+        -- and this is just another way to say
+        --   reduce [] (K <> a <> b)
+        -- But, we do now apply the basic reduction rules to the stack. 
+        -- We could as well do 
+        --        reduce [] (unflat (top:acc))
+        -- but this way we avoid flattening/unflattening of the whole 
+        -- expression all the time.
+        reduce (x:xs)     I                     = reduce xs x
+        reduce (x:_:xs)   K                     = reduce xs x 
+        reduce (f:g:h:xs) S                     = reduce (h:(g<>h):xs) f
+        -- At tis point, the expression is reduced.
+        -- It is nether of the form (a <> b), nor is it a I,K or S
+        -- that could operate on the list.
+        -- We take the opportunity to optimize the arguments a bit, 
+        -- without reducing them fully. For, if we did reduce them
+        -- now, then evaluation of
+        --  Yf,  where Y is the fixpoint operator Yf = f(Yf)
+        -- would cause us to evaluate Yf again, which would result in
+        -- f(Yf) and we had to reduce that Yf again and so on ad infinitum.
+        reduce acc x                            = x:map f acc
+            where f = if eager then evaluate true else opt
+
+--- do a single evaluation step
+--- at most one K, I or S is applied
+step1  (App I y)                    = y
+step1  (App (App K x) _)            = x
+step1  (App (App (App S f) g) h)    = (f <> h <> (g <> h))
+step1  x                            = x
+
+--- evaluate the innermost expression until it is not reducible anymore
+step = step' [] where
+    step'  acc (App I y)                    = step' acc y
+    step'  acc (App (App K x) _)            = step' acc x
+    step'  acc (App (App (App S f) g) h)    = step' acc (f <> h <> (g <> h))
+    step'  acc (App a b)                    = step' (b:acc) a
+    step'  acc x                            = unflat (x:acc)
+
+{--  This is a "light" reduce: it does not re-apply itself to the result
+    of optimizing sub-expressions, hence in general
+    
+    > opt (a <> b) != opt (opt a <> opt b)
+    
+    It is used to remove superfluous K, I and S from the result,
+    but it does not take into account all reducible expressions that
+    result from the optimization. Hence it does not recurse potentially
+    endlessly.
+    -}
+opt (App I y)                    = opt y
+opt (App (App K x) _)            = opt x
+opt (App (App (App S f) g) h)    = opt (f <> h <> (g <> h))
+opt (App a b)                    = App (opt a) (opt b) -- no recursion here
+opt x                            = x
+
+
+
 
 --- literal equality, does not take substitutions in account
 derive Eq SKI
+
+instance Semigroup SKI where
+    mappend = (<>)
 
 --- raw show
 instance Show SKI where
@@ -56,7 +196,54 @@ instance Show SKI where
     show (C  s) = if length s == 1 && !(s.charAt 0).isLowerCase
                     then s
                     else "#" ++ s ++ "#"
-    show app = show first ++ concatMap showsub rest where first:rest = flat app
+    show app = show first ++ concatMap showsub rest 
+        where flapp = flat app
+              first = head flapp
+              rest  = tail flapp
     
     showsub (app@App{}) = "(" ++ show app ++ ")"
     showsub ski = show ski 
+    
+instance Semigroup (Semigroup b) => (a|b) where
+    mappend (left@Left l) _          = left
+    mappend (Right _) (left@Left  b) = left
+    mappend (Right a) (Right b)      = Right (a `mappend` b) 
+
+data Token = Atom SKI | LPAR | RPAR
+instance Show Token
+    where
+        show LPAR = "("
+        show RPAR = ")"
+        show (Atom x) = show x
+        showList ts ss = concatMap show ts ++ ss
+
+parse  = parse' . lex . unpacked  where
+    lex [] = []
+    lex (s:xs)
+        | s.isWhitespace = lex xs
+        | s == 'I' = Atom I : lex xs
+        | s == 'K' = Atom K : lex xs
+        | s == 'S' = Atom S : lex xs
+        | s >= 'a' && s <= 'z' = Atom (V s) : lex xs
+        | s == '(' = LPAR : lex xs
+        | s == ')' = RPAR : lex xs
+        | otherwise = Atom (C s.display) : lex xs
+        
+    parse' = state0 []
+    
+    state0 acc (Atom x:rest) = state0 (x:acc) rest
+    state0 acc (LPAR:rest) = case state1 [] rest of
+        Right (x, ts) = state0 (x:acc) ts
+        Left err      = Left err
+    state0 acc (RPAR:rest) = Left "unexpected ')'"
+    state0 [] [] = Left "unexpected end of input" 
+    state0 acc [] = Right (unflat (reverse acc))
+        
+    state1 acc [] = Left "missing ')'"
+    state1 [] (RPAR:xs) = Left "unexpected ')' right after '('"
+    state1 acc (RPAR:xs) = Right (unflat (reverse acc), xs)
+    state1 acc (Atom x:rest) = state1 (x:acc) rest
+    state1 acc (LPAR:rest) = case state1 [] rest of
+        Right (x, ts) = state1 (x:acc) ts
+        left          = left
+ 

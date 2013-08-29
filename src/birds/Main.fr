@@ -3,5 +3,36 @@ module birds.Main where
 
 import Data.List hiding(insert, lookup, delete, union)
 import Data.TreeMap
+import birds.Ski
+
+data ConsoleReader = mutable native jline.ConsoleReader where
+    native new :: () -> IO ConsoleReader throws IOException
+    native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
+    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException 
+    
+main _ = do
+        console <- ConsoleReader.new ()
+        console.setPrompt "ski> " 
+        forever (interaction console) 
+                `catch` eof
+                `catch` ioex
+                `finally` println "See you again."
+    where
+        interaction console = do
+            line <- ConsoleReader.readLine console
+            case line of
+                Just reply -> case parse reply of
+                    Left msg  -> stderr.println msg
+                    Right x -> println (eval x)
+                Nothing -> throwIO (EOFException.new "EOF")
+        prompt s = do
+            stdout.print s
+            stdout.flush
+            getLine
+        eof :: EOFException -> IO ()
+        eof _ = print "Good bye. "
+        ioex :: IOException -> IO ()
+        ioex _ = print "Sorry, we had an IO exception. "
+
 
 
