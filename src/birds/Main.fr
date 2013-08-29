@@ -31,7 +31,7 @@ main _ = do
                 ":(Txy)(yx)",       -- trush
                 ":(Uxy)(y(xxy))",   -- turing
                 ":(Vxyz)(zxy)",     -- virio
-                ": Y(UU)"            -- fix point combinator
+                ":Y(UU)"            -- fix point combinator
             ]
         mapM_ println [
             "",
@@ -111,11 +111,18 @@ cmdList ref s = do
         _ -> do
             mapM_ (println . show . snd) ((sortBy (comparing fst) . each) state.birds) 
 
+--- prints the last expression in raw form
+cmdRaw :: IORef Global -> String -> IO ()
+cmdRaw ref _ = do
+    state <- ref.get
+    println state.lastResult
+ 
 commands = [
     (´^step\s*´, cmdStep),
     (´^parse\s*´, cmdParse),
     (´^eval\s*´, cmdEval),
     (´^list\s*´, cmdList),
+    (´^raw\s*´,  cmdRaw),
     ]
 
 parseCommand s = try commands where

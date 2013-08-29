@@ -193,9 +193,8 @@ instance Show SKI where
     show K = "K"
     show I = "I"
     show (V  c) = display c
-    show (C  s) = if length s == 1 && (s.charAt 0).isLetterOrDigit
-                    then s
-                    else s ++ " "
+    show (C  s) | length s == 1, isSuffix (s.charAt 0) = "(" ++ s ++ ")"
+    show (C  s) = s
     show app = show first ++ concatMap showsub rest 
         where flapp = flat app
               first = head flapp
@@ -217,6 +216,10 @@ instance Show Token
         show (Atom x) = show x
         showList ts ss = concatMap show ts ++ ss
 
+--- tell if character is allowed as suffix?
+isSuffix c = c == '#' || c == '?' || c == '\'' 
+                || c > 'z' && c.isLowerCase  -- i.e. µ 
+
 parse  = parse' . lex . unpacked  where
     lex [] = []
     lex (s:xs)
@@ -227,12 +230,13 @@ parse  = parse' . lex . unpacked  where
         | s >= 'a' && s <= 'z' = Atom (V s) : lex xs
         | s == '(' = LPAR : lex xs
         | s == ')' = RPAR : lex xs
-        | !s.isLetterOrDigit,
-            c:ys <- xs,                   -- allow ?Z, etc. 
-            c.isLetterOrDigit, 
-            !c.isLowerCase = Atom (C (packed [s,c])) : lex ys
+        | s.isUpperCase,
+            suffs <- takeWhile isSuffix xs,                   -- allow ?Z, etc.
+            rest  <- dropWhile isSuffix xs 
+             = Atom (C (packed (s:suffs))) : lex rest
         | otherwise = Atom (C s.display) : lex xs
-        
+    
+       
     parse' = state0 []
     
     state0 acc (Atom x:rest) = state0 (x:acc) rest
