@@ -14,7 +14,8 @@ instance Show Def where
 
 def tree left right = case fl of
         C s:rest
-            | s `elem` ["I", "K", "S"] = Left ("We must not redefine basic bird " ++ s)
+            | s `elem` ["I", "K", "S", ":"] = Left ("We must not redefine basic bird " ++ s)
+            | s `elem` combinators right = Left ("Very clever, but please use a sage bird.")
             | !(all isVar rest)    = Left ("Left hand side must apply variables only")  
             | Just a <- dupvars vl = Left ("Variable " ++ show a ++ " must occur only once in left hand side")
             | bad <- filter (`notElem` vl) vr, !(null bad) 
@@ -22,8 +23,8 @@ def tree left right = case fl of
                                             ++ joined ", " (map display bad))
             | !(null cr)           = Left ("Right hand side names unknown birds: "
                                             ++ joined ", " (map display cr))
-            | otherwise = Right D{left, right, bird = make left sr}
-        _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name") 
+            | otherwise = Right D{left, right, bird = eval (make left sr)}
+        _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name other than S,I,K or :") 
     where
         fl = flat left
         -- fr = flat right
@@ -35,6 +36,12 @@ def tree left right = case fl of
         dupvars (a:as) = if a `elem` as then Just a else dupvars as
         isVar V{} = true
         isVar _   = false
+
+depends D{right} = combinators right
+name    D{left}  = s where C s = head (flat left)
+--- definitions in dependency order
+deporder tree    = (catMaybes . map tree.lookupS . concat . tsort depends) tree
+dependsOn def s  = s `elem` depends def 
 
 subst :: DefTree -> SKI -> SKI                  
 subst tree (App a b) = App (subst tree a) (subst tree b)
@@ -73,7 +80,7 @@ v `elimination` x  = case x of
                 b' = v `elimination` b
                         
 nice tree ski = fold unsubst ski defs where
-    defs = (sortBy (comparing (length . show . Def.bird . snd)) . each) tree
+    defs = (reverse . sortBy (comparing (length . show . Def.bird . snd)) . each) tree
     unsubst x (k, def) 
         | x == Def.bird def = C k
         | App a b <- x = App (unsubst a (k, def)) (unsubst b (k, def))

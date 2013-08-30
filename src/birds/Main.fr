@@ -16,23 +16,27 @@ data Global = St {
         console  :: ConsoleReader,
         lastLine :: String, 
         lastResult :: SKI,
-        birds :: DefTree
+        birds :: DefTree,
+        dbpath :: String        -- where to save stuff
     }
             
-main _ = do
+main xs = do
         console <- ConsoleReader.new ()
         console.setPrompt "ski> "
         ref     <- IORef.new St{console, 
                                 lastLine="help", 
                                 lastResult=I, 
-                                birds = Tree.empty}
-        mapM_ (oneLine ref) [
-                ":(Bfgx)(f(gx))",   -- bluebird
-                ":(Txy)(yx)",       -- trush
-                ":(Uxy)(y(xxy))",   -- turing
-                ":(Vxyz)(zxy)",     -- virio
-                ":Y(UU)"            -- fix point combinator
-            ]
+                                birds = Tree.empty,
+                                dbpath = if null xs then "birds.ski" else head xs}
+        if null xs 
+            then mapM_ (oneLine ref) [
+                    ":(Bfgx)(f(gx))",   -- bluebird
+                    ":(Txy)(yx)",       -- trush
+                    ":(Uxy)(y(xxy))",   -- turing
+                    ":(Vxyz)(zxy)",     -- virio
+                    ":Y(UU)"            -- fix point combinator
+                ]
+            else loadFile ref (head xs)
         mapM_ println [
             "",
             "Enter expressions or combinator definitions or help for a command list.",
@@ -54,6 +58,32 @@ oneLine :: IORef Global -> String -> IO ()
 oneLine ref s = do
     let (command, expr) = parseCommand s
     command ref expr 
+
+loadFile :: IORef Global -> String -> IO ()
+loadFile ref "" = ref.get >>= loadFile ref . Global.dbpath
+loadFile ref fn = do
+            rdr <- openReader fn
+            rdr.getLines >>= mapM_ (oneLine ref)
+            rdr.close
+            stderr.println ("Loaded " ++ fn)
+            IORef.modify Global.{dbpath = fn} ref
+        `catch` notfound fn
+    
+notfound :: String -> FileNotFoundException -> IO ()
+notfound fn _ = stderr.println ("Could not find " ++ fn)
+
+saveFile :: IORef Global -> String -> IO ()
+saveFile ref "" = ref.get >>= saveFile ref . Global.dbpath
+saveFile ref fn = do
+            pr <- openWriter fn
+            state <- ref.get
+            mapM_ (pr.println . show) ((map undef . deporder) state.birds)
+            pr.close
+            stderr.println ("Saved to " ++ fn)
+            IORef.modify Global.{dbpath = fn} ref
+        `catch` notfound fn
+    where
+        undef D{left,right} = C ":" <> left <> right
 
 interaction :: IORef Global -> IO ()
 interaction ref = do
@@ -90,16 +120,25 @@ cmdEvalWith ref what reply = do
 newdef :: IORef Global -> Def -> IO ()
 newdef ref d = do
     state <- ref.get
-    let (C s) = head (flat d.left)
-        nt = brds.insert s d
-        todel = [ b | (b,d) <- each state.birds, s `elem` combinators d.right ]
-        brds = fold Tree.delete state.birds todel
-    unless (null todel) do
-        println ("Following birds were deleted, because they referenced " ++ s ++ ":")
-        println (joined ", " todel)
-    IORef.modify Global.{birds=nt} ref
+    let s = name d
+        newbirds = case state.birds.lookupS s of
+            Nothing -> state.birds.insert s d
+            Just _  -> (fold remake Tree.empty  . replace d . deporder) state.birds
+        fromDefs = Tree.fromList . map dname
+        dname def = (name def, def)
+        remake :: DefTree -> Def -> DefTree
+        remake tree d  = case def tree d.left d.right of
+            Right d -> tree.insert (name d) d 
+            Left  e -> tree
+        replace d []  = []
+        replace d (o:os)  
+            | name o == name d = d : os
+            | otherwise = o : replace d os 
+    IORef.modify Global.{birds=newbirds} ref
     IORef.modify Global.{lastResult=d.bird} ref
-    println (d.bird)
+    IORef.modify Global.{lastLine="save"} ref
+    println (s ++ " = " ++ show d.bird)
+    
 
 cmdList :: IORef Global -> String -> IO ()
 cmdList ref s = do
@@ -109,7 +148,7 @@ cmdList ref s = do
             Just def -> println (show def)
             Nothing  -> stderr.println("Bird " ++ s ++ " is unknown.")
         _ -> do
-            mapM_ (println . show . snd) ((sortBy (comparing fst) . each) state.birds) 
+            mapM_ (println . show) (deporder state.birds) 
 
 --- prints the last expression in raw form
 cmdRaw :: IORef Global -> String -> IO ()
@@ -123,6 +162,8 @@ commands = [
     (´^eval\s*´, cmdEval),
     (´^list\s*´, cmdList),
     (´^raw\s*´,  cmdRaw),
+    (´^load\s*´,  loadFile),
+    (´^save\s*´,  saveFile),
     ]
 
 parseCommand s = try commands where

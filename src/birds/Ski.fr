@@ -230,7 +230,7 @@ parse  = parse' . lex . unpacked  where
         | s >= 'a' && s <= 'z' = Atom (V s) : lex xs
         | s == '(' = LPAR : lex xs
         | s == ')' = RPAR : lex xs
-        | s.isUpperCase,
+        | ! (isSuffix s),
             suffs <- takeWhile isSuffix xs,                   -- allow ?Z, etc.
             rest  <- dropWhile isSuffix xs 
              = Atom (C (packed (s:suffs))) : lex rest
