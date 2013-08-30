@@ -105,6 +105,7 @@ cmdEvalWith ref what "" = do
     ref.put state.{lastResult=result}
     
 cmdEvalWith ref what reply = do
+    t0 <- System.currentTimeMillis ()
     state <- ref.get  
     case parse reply of
             Left msg  -> stderr.println msg
@@ -116,6 +117,11 @@ cmdEvalWith ref what reply = do
                 let result = what (subst state.birds x)
                 println (nice state.birds result)
                 ref.put state.{lastResult=result}
+                t1 <- System.currentTimeMillis ()
+                let dur = (t1-t0).double / 1000
+                when (dur > 1) do
+                     stderr.println("Duration: " ++ show dur)
+                -- return ()
 
 newdef :: IORef Global -> Def -> IO ()
 newdef ref d = do
