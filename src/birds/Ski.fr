@@ -33,9 +33,11 @@ infixl 7 `<>`
     Note that the result is never the empty list, as atomic SKI expressions
     result in a singleton list.
     -}
-flat = reverse . flat'
-    where flat' (App a b) = b:flat' a
-          flat' x         = [x]
+flat = flatT []
+
+--- Helper for 'flat', or when part of the list already exists.
+flatT acc (App a b) = flatT (b:acc) a
+flatT acc x         = x:acc
           
 --- The converse of 'flat', the following law holds:
 --- > unflat (flat x) == x
@@ -193,12 +195,20 @@ instance Show SKI where
     show K = "K"
     show I = "I"
     show (V  c) = display c
-    show (C  s) | length s == 1, isSuffix (s.charAt 0) = "(" ++ s ++ ")"
     show (C  s) = s
-    show app = show first ++ concatMap showsub rest 
-        where flapp = flat app
-              first = head flapp
-              rest  = tail flapp
+    show app = showList ( flat app ) "" 
+    showList [] _ = ""
+    showList (x:xs) _ = showsub x ++ space ++ showList xs ""
+        where 
+            dotted (C s) = (s.charAt 0) == '.'
+            dotted _     = false
+            cvp S        = true
+            cvp I        = true
+            cvp K        = true
+            cvp V{}      = true
+            cvp (C s)    = (s.charAt 0) != '.'
+            cvp _        = false
+            space        = if dotted x && !(null xs) && cvp (head xs) then " " else ""
     
     showsub (app@App{}) = "(" ++ show app ++ ")"
     showsub ski = show ski 
@@ -217,8 +227,8 @@ instance Show Token
         showList ts ss = concatMap show ts ++ ss
 
 --- tell if character is allowed as suffix?
-isSuffix c = c == '#' || c == '?' || c == '\'' 
-                || c > 'z' && c.isLowerCase  -- i.e. µ 
+noDelimitter c = c != ' ' && c != '.' && c != '(' && c != ')' 
+                
 
 parse  = parse' . lex . unpacked  where
     lex [] = []
@@ -230,10 +240,10 @@ parse  = parse' . lex . unpacked  where
         | s >= 'a' && s <= 'z' = Atom (V s) : lex xs
         | s == '(' = LPAR : lex xs
         | s == ')' = RPAR : lex xs
-        | ! (isSuffix s),
-            suffs <- takeWhile isSuffix xs,                   -- allow ?Z, etc.
-            rest  <- dropWhile isSuffix xs 
-             = Atom (C (packed (s:suffs))) : lex rest
+        | s == '.',                             -- allow .whatever
+            name  <- takeWhile noDelimitter xs,        
+            rest  <- dropWhile noDelimitter xs 
+             = Atom (C (packed (s:name))) : lex rest
         | otherwise = Atom (C s.display) : lex xs
     
        
