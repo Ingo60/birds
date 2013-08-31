@@ -11,8 +11,9 @@ data ConsoleReader = mutable native jline.ConsoleReader where
     native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
     native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException
                       | ConsoleReader -> String -> IO (Maybe String) throws IOException
+    native addCompletor :: ConsoleReader -> Completor -> IO Bool
 
-
+data Completor = mutable native jline.Completor
 
 class LogicalLineReader rdr where
     getNext :: rdr -> IO (Maybe String)
