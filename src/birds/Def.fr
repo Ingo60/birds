@@ -80,8 +80,16 @@ v `elimination` x  = case x of
                 b' = v `elimination` b
                         
 nice tree ski = fold unsubst ski defs where
-    defs = (reverse . sortBy (comparing (length . show . Def.bird . snd)) . each) tree
-    unsubst x (k, def) 
-        | x == Def.bird def = C k
-        | App a b <- x = App (unsubst a (k, def)) (unsubst b (k, def))
-        | otherwise = x 
+    defs = reverse (deporder tree)
+    unsubst S _ =  S
+    unsubst K _ =  K
+    unsubst I _ =  I
+    unsubst (v@V{}) _ = v
+    unsubst (c@C{}) _ = c
+    unsubst (f@App K I) _ = f 
+    unsubst (x@App a b) def 
+        | x == Def.bird def, length k < length (show x) = C k
+        | otherwise = App (unsubst a def) (unsubst b def) 
+        where 
+            k = name def
+            
