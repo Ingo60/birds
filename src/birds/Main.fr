@@ -14,29 +14,20 @@ data ConsoleReader = mutable native jline.ConsoleReader where
 
 data Global = St {
         console  :: ConsoleReader,
-        lastLine :: String, 
-        lastResult :: SKI,
-        birds :: DefTree,
+        birds, last :: DefTree,
         dbpath :: String        -- where to save stuff
     }
             
 main xs = do
         console <- ConsoleReader.new ()
         console.setPrompt "ski> "
-        ref     <- IORef.new St{console, 
-                                lastLine="help", 
-                                lastResult=I, 
+        ref     <- IORef.new St{console,  
                                 birds = Tree.empty,
+                                last  = Tree.empty,
                                 dbpath = if null xs then "birds.ski" else head xs}
-        if null xs 
-            then mapM_ (oneLine ref) [
-                    ":(Bfgx)(f(gx))",   -- bluebird
-                    ":(Txy)(yx)",       -- trush
-                    ":(Uxy)(y(xxy))",   -- turing
-                    ":(Vxyz)(zxy)",     -- virio
-                    ":Y(UU)"            -- fix point combinator
-                ]
-            else loadFile ref (head xs)
+        
+        loadFile ref (head xs)
+        
         mapM_ println [
             "",
             "Enter expressions or combinator definitions or help for a command list.",
@@ -91,36 +82,52 @@ interaction ref = do
     line <- ConsoleReader.readLine state.console
     reply <- getReply ref line
     oneLine ref reply
-    
-cmdEval  ref = cmdEvalWith ref eval
-cmdStep  ref s = do
-    cmdEvalWith ref step s
-    IORef.modify Global.{lastLine="step"} ref 
-cmdParse ref = cmdEvalWith ref id
-cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
-cmdEvalWith ref what "" = do
+
+getLast :: IORef Global -> IO SKI
+getLast ref =  ref.get 
+    >>= return . maybe I Def.bird . flip Tree.lookupS "_" . Global.last
+
+setLast :: IORef Global -> SKI -> IO ()
+setLast ref bird = do
     state <- ref.get
-    let result = what state.lastResult
-    println result
-    ref.put state.{lastResult=result}
+    let d = D{left=C "_", right=I, bird}
+    IORef.modify Global.{last <- insertkv "_" d} ref    
+            
+cmdEval  ref   = cmdEvalWith ref eval
+cmdStep  ref s = cmdEvalWith ref step s 
+cmdParse ref   = cmdEvalWith ref id
+
+cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
+cmdEvalWith ref what "" = getLast ref >>= cmdEvalWith ref what . show
     
 cmdEvalWith ref what reply = do
     t0 <- System.currentTimeMillis ()
     state <- ref.get  
     case parse reply of
             Left msg  -> stderr.println msg
-            Right (App (App (C ":") left) right) -> do
-                case def state.birds left right of
-                    Left s -> stderr.println ("ERROR: " ++ s)
-                    Right d -> newdef ref d
-            Right x   -> do
-                let result = what (subst state.birds x)
-                println (nice state.birds result)
-                ref.put state.{lastResult=result}
-                t1 <- System.currentTimeMillis ()
-                let dur = (t1-t0).double / 1000
-                when (dur > 1) do
-                     stderr.println("Duration: " ++ show dur)
+            Right parsed -> do 
+                let expr = subst state.last parsed
+                case expr of
+                    -- new definition
+                    (App (App (C ":") left) right) -> do
+                        case def state.birds left right of
+                            Left s -> stderr.println ("ERROR: " ++ s)
+                            Right d -> newdef ref d
+                    -- 'a' elimination x
+                    (App (App (C "\\") (V c)) x) -> do
+                        let result = c `elimination` x
+                        println result
+                        setLast ref result
+                        return ()
+                    -- just eval
+                    x   -> do
+                        let result = what (subst state.birds x)
+                        println (nice state.birds result)
+                        setLast ref result
+                        t1 <- System.currentTimeMillis ()
+                        let dur = (t1-t0).double / 1000
+                        when (dur > 1) do
+                             stderr.println("Duration: " ++ show dur)
                 -- return ()
 
 newdef :: IORef Global -> Def -> IO ()
@@ -130,8 +137,6 @@ newdef ref d = do
         newbirds = case state.birds.lookupS s of
             Nothing -> state.birds.insert s d
             Just _  -> (fold remake Tree.empty  . replace d . deporder) state.birds
-        fromDefs = Tree.fromList . map dname
-        dname def = (name def, def)
         remake :: DefTree -> Def -> DefTree
         remake tree d  = case def tree d.left d.right of
             Right d -> tree.insert (name d) d 
@@ -141,8 +146,6 @@ newdef ref d = do
             | name o == name d = d : os
             | otherwise = o : replace d os 
     IORef.modify Global.{birds=newbirds} ref
-    IORef.modify Global.{lastResult=d.bird} ref
-    IORef.modify Global.{lastLine="save"} ref
     println (s ++ " = " ++ show d.bird)
     
 
@@ -158,20 +161,20 @@ cmdList ref s = do
 
 --- prints the last expression in raw form
 cmdRaw :: IORef Global -> String -> IO ()
-cmdRaw ref _ = do
-    state <- ref.get
-    println state.lastResult
+cmdRaw ref "" = getLast ref >>= println
+cmdRaw ref s  = cmdParse ref s >> getLast ref >>= println
  
 commands = [
     (´^step\s*´, cmdStep),
     (´^parse\s*´, cmdParse),
     (´^eval\s*´, cmdEval),
-    (´^list\s*´, cmdList),
     (´^raw\s*´,  cmdRaw),
+    (´^list\s*´, cmdList),
     (´^load\s*´,  loadFile),
     (´^save\s*´,  saveFile),
     ]
 
+parseCommand "" = (cmdStep, "")
 parseCommand s = try commands where
     try ((m,x):ms) 
         | s ~ m =  (x, (m.matcher s).replaceFirst "")
@@ -180,12 +183,12 @@ parseCommand s = try commands where
 
 getReply :: IORef Global -> Maybe String -> IO String
 getReply ref line = case line of
-        Just "" -> do
-            state <- ref.get
-            return state.lastLine
+        -- Just "" -> do
+        --     state <- ref.get
+        --     return state.lastLine
         Just reply -> do
             state <- ref.get
-            ref.put state.{lastLine = reply}
+--            ref.put state.{lastLine = reply}
             return reply
         Nothing -> throwIO (EOFException.new "EOF")
 
