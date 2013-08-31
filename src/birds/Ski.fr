@@ -25,8 +25,9 @@ identity = P 'I' i where
     i xs = Right xs
 
 starling = P 'S' s where
-    s (f:g:x:xs) = Right (f : x : g<>x : xs)
+    s (f:g:x:xs) = let xx = eval x in Right (f : xx : g<>xx : xs)
     s xs         = (Left . unflat) (starling : xs)
+
 
 kestrel = P 'K' k where
     k (a:b:xs)  = Right (a:xs)
@@ -89,6 +90,96 @@ combinators (App a b) = combinators a ++ combinators b
 combinators _ = []
 
 
+{-- 
+    Reduce a SKI expression according to the following rules:
+    - A primitive expressions (I,K,S,V,C) reduces to itself
+    - @I <> a@ reduces to @a@
+    - @K <> x <> y@ reduces to @x@
+    - @S <> x <> y <> z@  reduces to   @x <> z <> (y <> z)@
+    - @a<>b@ reduces to reduced @c<>b@, where @c@ is the reduced @a@. 
+
+    Note that, if we have a<>b, b is not reduced.
+
+    The definition below is a bit complex, but we must avoid 
+    stack overflows on deeply nested expressions like
+    
+    >   unflat (replicate 5000 I)
+    
+    The reduction algorithm trades stack space against heap space, by
+    going down to the expression nested deepest on the left, while pushing
+    the right elements to a list (like 'flat'). Once the innermost expression
+    has been reduced, we have either a 'Var', a 'Const' or a basic combinator.
+    
+    If it is a basic combinator, then its effect on the argument list is 
+    computed, and the process continues until we have an atom that connot 
+    be applied to the list anymore. 
+    
+    For example 
+    
+    > II(KI)I                   
+    > (((II)(KI))I)             II(KI)I
+    > ((II)(KI))   [I]          II(KI)I
+    > (II) [KI,I]               II(KI)I
+    
+    Only at this point do we see that we can reduce II:
+    
+    > I [KI, I]                 I(KI)I
+    
+    The I pops the first argument off the list and lets it operate on the tail.
+    Now again, we have an expression of the form @a <> b@ on top:
+    
+    > (KI) [I]                  KII
+    > K [I, I]                  KII
+    
+    Now K can operate on the list, by throwing the second element away and
+    we continue to operate with the first I.
+     
+    > I []                      I
+    -}
+eval = evaluate false
+evaluate eager = reduce []
+    where
+        -- reduce acc ex | traceLn ("reduce: " ++ show ex ++ "  " ++ show acc) = undefined
+        
+        -- Now the critical step to avoid too deeply nested left recursions.
+        -- The expression b is saved for later, and we continue with the left hand side
+        -- Since this is tail recursion, it will be a loop at runtime.
+        reduce acc (App a b)                    = reduce (b:acc) a
+        
+        -- At this point, the leftmost expression of the original
+        -- expression is not of the form @a<>b@ anymore and the arguments
+        -- are in the accumulator.
+        -- For example, when we had
+        --  (S <> K <> x) <> a <> b
+        -- we have now 
+        --   reduce [K,x,a,b] S
+        
+        -- We do now apply the basic reduction rules to the stack. 
+        -- a) reduction of a primitive
+        reduce xs (P _ f)                       = case f xs of
+            Left result -> result
+            Right ys    -> reduce (tail ys) (head ys)
+        -- b) reduction of a constructor
+        -- It is nether of the form (a <> b), nor is it a I,K or S
+        -- that could operate on the list.
+        -- We take the opportunity to optimize the arguments a bit, 
+        -- without reducing them fully. For, if we did reduce them
+        -- now, then evaluation of
+        --  Yf,  where Y is the fixpoint operator Yf = f(Yf)
+        -- would cause us to evaluate Yf again, which would result in
+        -- f(Yf) and we had to reduce that Yf again and so on ad infinitum.
+        reduce acc x                            = unflat (x:map f acc)
+            where f = if eager then evaluate true else id
+
+
+--- evaluate the innermost expression until it is not reducible anymore
+step = reduce [] where
+    reduce acc (App a b)                    = reduce (b:acc) a
+    reduce xs (P _ f)                       = case f xs of
+        Left result -> result
+        Right ys    -> unflat ys
+    reduce acc x                            = unflat (x:acc)
+            
 
 
 --- literal equality, does not take substitutions in account
