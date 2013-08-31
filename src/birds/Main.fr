@@ -6,6 +6,7 @@ import Data.TreeMap
 import birds.Ski
 import birds.Def
 import birds.LogicalLine
+import birds.Eval
 
 data ParensCompletor = mutable native birds.ParensCompletor where
     native new :: () -> IO  ParensCompletor
@@ -90,19 +91,19 @@ interaction ref = ref.get
 
 getLast :: IORef Global -> IO SKI
 getLast ref =  ref.get 
-    >>= return . maybe I Def.bird . flip Tree.lookupS "_" . Global.last
+    >>= return . maybe identity Def.bird . flip Tree.lookupS "_" . Global.last
 
 setLast :: IORef Global -> SKI -> IO ()
 setLast ref bird = do
     state <- ref.get
-    let d = D{left=C "_", right=I, bird}
+    let d = D{left=C "_", right=identity, bird}
     IORef.modify Global.{last <- insertkv "_" d} ref    
             
 cmdEval  ref   = cmdEvalWith ref eval
 cmdStep  ref s = cmdEvalWith ref step s 
-cmdParse ref   = cmdEvalWith ref id
+cmdParse ref   = cmdEvalWith ref (flip const)
 
-cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
+cmdEvalWith :: IORef Global -> (DefTree -> SKI -> SKI) -> String -> IO ()
 cmdEvalWith ref what "" = getLast ref >>= cmdEvalWith ref what . show
     
 cmdEvalWith ref what reply = do
@@ -126,8 +127,8 @@ cmdEvalWith ref what reply = do
                         return ()
                     -- just eval
                     x   -> do
-                        let result = what (subst state.birds x)
-                        println (nice state.birds result)
+                        let result = what state.birds x
+                        println (show result)
                         setLast ref result
                         t1 <- System.currentTimeMillis ()
                         let dur = (t1-t0).double / 1000

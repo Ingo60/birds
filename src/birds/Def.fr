@@ -14,7 +14,7 @@ instance Show Def where
 
 def tree left right = case fl of
         C s:rest
-            | s `elem` ["I", "K", "S", ":"] = Left ("We must not redefine basic bird " ++ s)
+            | isPrim s = Left ("We must not redefine basic bird " ++ s)
             | s `elem` combinators right = Left ("Very clever, but please use a sage bird.")
             | !(all isVar rest)    = Left ("Left hand side must apply variables only")  
             | Just a <- dupvars vl = Left ("Variable " ++ show a ++ " must occur only once in left hand side")
@@ -23,8 +23,8 @@ def tree left right = case fl of
                                             ++ joined ", " (map display bad))
             | !(null cr)           = Left ("Right hand side names unknown birds: "
                                             ++ joined ", " (map display cr))
-            | otherwise = Right D{left, right, bird = eval (make left sr)}
-        _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name other than S,I,K or :") 
+            | otherwise = Right D{left, right, bird = make left sr}
+        _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name and not a basic bird.") 
     where
         fl = flat left
         -- fr = flat right
@@ -70,26 +70,23 @@ make def _ = error ("not well formed: " ++ show def)
         -}
 v `elimination` x  = case x of
             V s         
-                | s == v    = I
-                | otherwise = (K <> x)
+                | s == v    = identity
+                | otherwise = (kestrel <> x)
             App y (V s) | s == v,
                 v `notElem` vars y = y
-            y | v `notElem` vars y = (K <> y)
-            App a b                = (S <> a' <> b') where
+            y | v `notElem` vars y = (kestrel <> y)
+            App a b                = (starling <> a' <> b') where
                 a' = v `elimination` a
                 b' = v `elimination` b
                         
-nice tree ski = fold unsubst ski defs where
-    defs = reverse (deporder tree)
-    unsubst S _ =  S
-    unsubst K _ =  K
-    unsubst I _ =  I
-    unsubst (v@V{}) _ = v
-    unsubst (c@C{}) _ = c
-    unsubst (f@App K I) _ = f 
-    unsubst (x@App a b) def 
-        | x == Def.bird def, length k < length (show x) = C k
-        | otherwise = App (unsubst a def) (unsubst b def) 
-        where 
-            k = name def
+-- nice tree ski = fold unsubst ski defs where
+--     defs = reverse (deporder tree)
+--     unsubst (p@P{}) _ = p
+--     unsubst (v@V{}) _ = v
+--     unsubst (c@C{}) _ = c
+--     unsubst (x@App a b) def 
+--         | x == Def.bird def, length k < length (show x) = C k
+--         | otherwise = App (unsubst a def) (unsubst b def) 
+--         where 
+--             k = name def
             
