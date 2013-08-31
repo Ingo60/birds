@@ -1,0 +1,65 @@
+
+--- Input handling
+
+module birds.LogicalLine where
+
+import Data.List
+
+--- we use JLine package for terminal input
+data ConsoleReader = mutable native jline.ConsoleReader where
+    native new :: () -> IO ConsoleReader throws IOException
+    native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
+    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException
+                      | ConsoleReader -> String -> IO (Maybe String) throws IOException
+
+
+
+class LogicalLineReader rdr where
+    getNext :: rdr -> IO (Maybe String)
+
+
+--- Tell the number of missing right parentheses
+missing :: String -> Int
+missing = miss 0 . unpacked
+    where
+        miss !n []          = n
+        miss !n ('(':cs)    = miss (n+1) cs
+        miss !n (')':cs)    = miss (n-1) cs
+        miss !n (_:cs)      = miss n cs
+
+
+instance LogicalLineReader ConsoleReader where
+    getNext :: ConsoleReader -> IO (Maybe String)
+    getNext cr = next "-> " ""
+        where
+            next prompt sofar = do 
+                input <- cr.readLine prompt
+                case input of
+                    Nothing
+                        | null sofar  -> return Nothing
+                        | otherwise   -> return (Just sofar)
+                    Just line -> do
+                        let r = sofar ++ line
+                            m = missing r
+                        if m > 0
+                        then next ("(" ++ show m ++ ") ") r
+                        else return (Just r) 
+                        
+                  
+instance LogicalLineReader BufferedReader where
+    getNext cr = next ""
+        where
+            next sofar = do 
+                input <- cr.readLine
+                case input of
+                    Nothing
+                        | null sofar  -> return Nothing
+                        | otherwise   -> return (Just sofar)
+                    Just line -> do
+                        let r = sofar ++ " " ++ line
+                            m = missing r
+                        if m > 0
+                        then next r
+                        else return (Just r) 
+ 
+    

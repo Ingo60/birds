@@ -5,12 +5,8 @@ import Data.List hiding(insert, lookup, delete, union)
 import Data.TreeMap
 import birds.Ski
 import birds.Def
+import birds.LogicalLine
 
-data ConsoleReader = mutable native jline.ConsoleReader where
-    native new :: () -> IO ConsoleReader throws IOException
-    native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
-    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException
-                      | ConsoleReader -> String -> IO (Maybe String) throws IOException
 
 data Global = St {
         console  :: ConsoleReader,
@@ -20,7 +16,7 @@ data Global = St {
             
 main xs = do
         console <- ConsoleReader.new ()
-        console.setPrompt "ski> "
+        -- console.setPrompt "ski> "
         ref     <- IORef.new St{console,  
                                 birds = Tree.empty,
                                 last  = Tree.empty,
@@ -54,11 +50,17 @@ loadFile :: IORef Global -> String -> IO ()
 loadFile ref "" = ref.get >>= loadFile ref . Global.dbpath
 loadFile ref fn = do
             rdr <- openReader fn
-            rdr.getLines >>= mapM_ (oneLine ref)
-            rdr.close
-            stderr.println ("Loaded " ++ fn)
             IORef.modify Global.{dbpath = fn} ref
+            work rdr `finally` (rdr.close >> stderr.println ("Loaded " ++ fn))
         `catch` notfound fn
+    where
+        work rdr = do
+            logical <- getNext rdr
+            case logical of
+                Nothing -> return ()
+                Just s  -> oneLine ref s >> work rdr
+
+        
     
 notfound :: String -> FileNotFoundException -> IO ()
 notfound fn _ = stderr.println ("Could not find " ++ fn)
@@ -77,11 +79,10 @@ saveFile ref fn = do
         undef D{left,right} = C ":" <> left <> right
 
 interaction :: IORef Global -> IO ()
-interaction ref = do
-    state <- ref.get 
-    line <- ConsoleReader.readLine state.console
-    reply <- getReply ref line
-    oneLine ref reply
+interaction ref = ref.get 
+    >>= getNext . Global.console
+    >>= maybe (throwIO (EOFException.new "EOF")) (oneLine ref)
+
 
 getLast :: IORef Global -> IO SKI
 getLast ref =  ref.get 
