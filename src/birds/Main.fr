@@ -6,7 +6,6 @@ import Data.TreeMap
 import birds.Ski
 import birds.Def
 import birds.LogicalLine
-import birds.Eval
 
 data ParensCompletor = mutable native birds.ParensCompletor where
     native new :: () -> IO  ParensCompletor
@@ -101,9 +100,9 @@ setLast ref bird = do
             
 cmdEval  ref   = cmdEvalWith ref eval
 cmdStep  ref s = cmdEvalWith ref step s 
-cmdParse ref   = cmdEvalWith ref (flip const)
+cmdParse ref   = cmdEvalWith ref id
 
-cmdEvalWith :: IORef Global -> (DefTree -> SKI -> SKI) -> String -> IO ()
+cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
 cmdEvalWith ref what "" = getLast ref >>= cmdEvalWith ref what . show
     
 cmdEvalWith ref what reply = do
@@ -127,8 +126,8 @@ cmdEvalWith ref what reply = do
                         return ()
                     -- just eval
                     x   -> do
-                        let result = what state.birds x
-                        println (show result)
+                        let result = what (subst state.birds x)
+                        println (maybe (show result) show (numeric result))
                         setLast ref result
                         t1 <- System.currentTimeMillis ()
                         let dur = (t1-t0).double / 1000
@@ -170,6 +169,17 @@ cmdRaw :: IORef Global -> String -> IO ()
 cmdRaw ref "" = getLast ref >>= println
 cmdRaw ref s  = cmdParse ref s >> getLast ref >>= println
  
+--- prints the expression as number
+numericPrint ref "" = getLast ref >>= println . numeric
+numericPrint ref s  = cmdEval ref s >> getLast ref >>= println . numeric
+
+numeric :: SKI -> Maybe Integer
+numeric x = num' x 0 where
+    num' :: SKI -> Integer -> Maybe Integer
+    num' (App (App (P 'V' _) (App (P 'K' _) (P 'I' _))) pred) !n = num' pred (n+1)
+    num' (App (App (P 'V' _) (P 'K' _)) (P 'K' _)) !n = Just n
+    num' x n = Nothing    
+ 
 commands = [
     (´^step\s*´, cmdStep),
     (´^parse\s*´, cmdParse),
@@ -178,6 +188,7 @@ commands = [
     (´^list\s*´, cmdList),
     (´^load\s*´,  loadFile),
     (´^save\s*´,  saveFile),
+    (´^num(ber)?\s*´, numericPrint),
     ]
 
 parseCommand "" = (cmdStep, "")
