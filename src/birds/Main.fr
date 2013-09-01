@@ -30,7 +30,7 @@ main xs = do
         
         mapM_ println [
             "",
-            "Enter expressions or combinator definitions or help for a command list.",
+            "Enter expressions or bird definitions or help for a command list.",
             "Type CTRL-D to end this session.",
             "",
             ] 
@@ -80,7 +80,7 @@ saveFile ref fn = do
             IORef.modify Global.{dbpath = fn} ref
         `catch` notfound fn
     where
-        undef D{left,right} = C ":" <> left <> right
+        undef D{left,right} = C "let " <> left <> right
 
 interaction :: IORef Global -> IO ()
 interaction ref = ref.get 
@@ -151,7 +151,7 @@ newdef ref d = do
             | name o == name d = d : os
             | otherwise = o : replace d os 
     IORef.modify Global.{birds=newbirds} ref
-    println (s ++ " = " ++ show d.bird)
+    setLast ref d.bird
     
 
 cmdList :: IORef Global -> String -> IO ()
@@ -159,7 +159,7 @@ cmdList ref s = do
     state <- ref.get
     case parse s of
         Right (C s) -> case state.birds.lookupS s of
-            Just def -> println (show def)
+            Just def -> println (show def) >> println (name def ++ " = " ++ show def.bird)
             Nothing  -> stderr.println("Bird " ++ s ++ " is unknown.")
         _ -> do
             mapM_ (println . show) (deporder state.birds) 
@@ -180,15 +180,59 @@ numeric x = num' x 0 where
     num' (App (App (P 'V' _) (P 'K' _)) (P 'K' _)) !n = Just n
     num' x n = Nothing    
  
+cmdLet :: IORef Global -> String -> IO ()
+cmdLet ref s  = do
+    state <- ref.get
+    case parse (".let " ++ s) of
+        Left msg  -> stderr.println ("SYNTAX: " ++ msg)
+        Right parsed -> do 
+            let expr = subst state.last parsed
+            case expr of
+                -- new definition
+                (App (App (C ".let") left) right) -> do
+                    case def state.birds left right of
+                        Left s -> stderr.println ("ERROR in definition of " 
+                                    ++ show left 
+                                    ++ ": " ++ s)
+                        Right d -> newdef ref d
+                sonst -> do
+                    stderr.println ("Not well formed, need 'let (Xabc)(expr)'") 
+
+cmdElim :: IORef Global -> String -> IO ()
+cmdElim ref s  = do
+    state <- ref.get
+    case parse (".elim " ++ s) of
+        Left msg  -> stderr.println ("SYNTAX: " ++ msg)
+        Right parsed -> do 
+            let expr = subst state.last parsed
+            case expr of
+                -- new definition
+                (App (App (C ".elim") left) right) -> do
+                    case left of
+                        V c -> do 
+                            let result = c `elimination` right
+                            println result
+                            setLast ref result
+                            return ()
+                        _ -> stderr.println ("expected variable, found " ++ show left)
+                _ -> stderr.println ("Not well form, need 'eliminate v (expr)'") 
+
+cmdComment ref _ = return ()
+cmdEcho    ref s = println s
+ 
 commands = [
     (´^step\s*´, cmdStep),
-    (´^parse\s*´, cmdParse),
+    (´^p(arse)\s*´, cmdParse),
     (´^eval\s*´, cmdEval),
-    (´^raw\s*´,  cmdRaw),
-    (´^list\s*´, cmdList),
-    (´^load\s*´,  loadFile),
-    (´^save\s*´,  saveFile),
-    (´^num(ber)?\s*´, numericPrint),
+    (´^r(aw)?\s*´,  cmdRaw),
+    (´^li(st)?\s*´, cmdList),
+    (´^lo(ad)?\s*´,  loadFile),
+    (´^s(ave)?\s*´,  saveFile),
+    (´^n(umber)?\s*´, numericPrint),
+    (´^let\s*´, cmdLet),
+    (´^elim(inate)?\s*´, cmdElim),
+    (´^###\s*´, cmdComment),
+    (´^echo\s*´, cmdEcho),
     ]
 
 parseCommand "" = (cmdStep, "")
@@ -197,16 +241,4 @@ parseCommand s = try commands where
         | s ~ m =  (x, (m.matcher s).replaceFirst "")
         | otherwise = try ms 
     try [] = (cmdEval, s) 
-
-getReply :: IORef Global -> Maybe String -> IO String
-getReply ref line = case line of
-        -- Just "" -> do
-        --     state <- ref.get
-        --     return state.lastLine
-        Just reply -> do
-            state <- ref.get
---            ref.put state.{lastLine = reply}
-            return reply
-        Nothing -> throwIO (EOFException.new "EOF")
-
 
