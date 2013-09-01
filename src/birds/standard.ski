@@ -1,0 +1,61 @@
+echo Bluebird B
+let (Bfgx)(f(gx))
+echo Propositional Birds, .t and .f
+echo .t is K, .f is KI
+let .f(KI)
+let .t K
+let (~x)(x.f.t)
+let (|ab)(a.t b)
+let (&ab)(ab.f)
+let (.<-> ab)(ab(~b))
+let (^ab)(~(.<-> ab))
+echo ~ (not) | (or)  & (and) ^ (exclusive or)  .<-> (boolean identity) 
+###
+###
+###
+echo Arithmetic Birds & Numbers
+###
+echo 0 is VKK, and the successor .s is V(KI)
+echo Numbers 0 to 9 and .10 are provided.
+let .s(V.f)
+let 0(VKK)
+let 1(.s 0)
+let 2(.s 1)
+let 3(.s 2)
+let 4(.s 3)
+let 5(.s 4)
+let 6(.s 5)
+let 7(.s 6)
+let 8(.s 7)
+let 9(.s 8)
+let .10(.s 9)
+###
+echo Basic arithmetic .z (Zero tester) .p (Predecessor) +  -  *  /
+let (.p a)(a.f)
+let (.z n)(n.t)
+let (.+' gab)(.z ab(g(.p a)(.s b)))
+let +(Y.+')
+let (.-' gab)(.z a0(.z ba(g(.p a)(.p b))))
+let -(Y.-')
+let (.*' gab)(.z a0(.z(.p a)b(+b(g(.p a)b))))
+let *(Y.*')
+###
+echo ² is square, ³ is cube.
+let (²n)(*nn)
+let (³n)(*n(*nn))
+let .100(*.10.10)
+let .1000(³.10)
+let .1e6(².1000)
+let .1e9(³.1000)
+echo Further numbers are .100 .1000 .1e6 .1e9
+###
+echo .even, .odd
+let (.even' gn)(.z n.t(.z(.p n).f(g(.p(.p n)))))
+let .even(Y.even')
+let .odd(B~.even)
+echo Relational birds = < >
+let (.=' rab)(.z a(.z b)(.z b.f(r(.p a)(.p b))))
+let =(Y.=')
+let (.<' rab)(.z a(B~.z b)(.z b.f(r(.p a)(.p b))))
+let <(Y.<')
+let (>ab)(<ba)
