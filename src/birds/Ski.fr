@@ -20,7 +20,7 @@ data SKI = P Char ([SKI] -> (SKI|[SKI]))    --- primitive combinator
         | E SKI                             --- shared 
 
 primitives = Tree.fromList [('S', starling), ('K', kestrel), ('I', identity),
-                    ('V', virio),
+                    ('V', vireo),
                     ('Y', fix),
                 ]
 primitive c = c `elem` keys primitives
@@ -44,9 +44,9 @@ kestrel = P 'K' k where
     k (a:b:xs)  = Right (a:xs)
     k xs        = (Left . unflat) (kestrel : xs)
 
-virio = P 'V' v where
+vireo = P 'V' v where
     v (x:y:z:xs) = Right (z:x:y:xs)
-    v xs         = (Left . unflat) (virio : xs)
+    v xs         = (Left . unflat) (vireo : xs)
 
 fix = P 'Y' y where
     y (f:xs) = Right (f:fix <> f:xs)
