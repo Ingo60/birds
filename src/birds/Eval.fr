@@ -1,8 +1,0 @@
---- Evaluation of SKI-expressions
-module birds.Eval where
-
-import Data.TreeMap
-import birds.Ski
-import birds.Def
-
-infixl 7 `<>`

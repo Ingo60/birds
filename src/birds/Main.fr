@@ -26,7 +26,7 @@ main xs = do
                                 last  = Tree.empty,
                                 dbpath = if null xs then "birds.ski" else head xs}
         
-        loadFile ref (head xs)
+        loadFile ref (if null xs then "birds.ski" else (head xs))
         
         mapM_ println [
             "",
@@ -126,7 +126,7 @@ cmdEvalWith ref what reply = do
                         return ()
                     -- just eval
                     x   -> do
-                        let result = what (subst state.birds x)
+                        let result = unE (what (subst state.birds x))
                         println (maybe (show result) show (numeric result))
                         setLast ref result
                         t1 <- System.currentTimeMillis ()

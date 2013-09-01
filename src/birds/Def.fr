@@ -1,4 +1,16 @@
---- This is an undocumented module
+{--- 
+    Code and data for bird definitions.
+    
+    A bird is defined in terms of other birds or 
+    variables that stand for arbitrary birds.
+
+    For example:
+    
+    > Bfgh = f(gh)
+
+    From this, we can compute via alpha-'elimination' the associated SKI expression,
+    which consists only of pre-defined birds and has no variables.
+    -}
 module birds.Def where
 
 import Data.TreeMap
@@ -15,7 +27,7 @@ instance Show Def where
 def tree left right = case fl of
         C s:rest
             | isPrim s = Left ("We must not redefine basic bird " ++ s)
-            | s `elem` combinators right = Left ("Very clever, but please use a sage bird.")
+            | s `elem` combinators right = Left ("Very clever, but please use a sage bird for recursion.")
             | !(all isVar rest)    = Left ("Left hand side must apply variables only")  
             | Just a <- dupvars vl = Left ("Variable " ++ show a ++ " must occur only once in left hand side")
             | bad <- filter (`notElem` vl) vr, !(null bad) 
@@ -41,8 +53,9 @@ depends D{right} = combinators right
 name    D{left}  = s where C s = head (flat left)
 --- definitions in dependency order
 deporder tree    = (catMaybes . map tree.lookupS . concat . tsort depends) tree
-dependsOn def s  = s `elem` depends def 
+-- dependsOn def s  = s `elem` depends def 
 
+--- Substitute constructor names with 'SKI' expressions
 subst :: DefTree -> SKI -> SKI                  
 subst tree (App a b) = App (subst tree a) (subst tree b)
 subst tree (it@C s) = case tree.lookupS s of
@@ -52,7 +65,7 @@ subst tree x = x
 
 --- Compute the SKI expression for a defined combinator.
 --- for example:
---- > make (B<>f<>g<>h) := f <> (g <> h))
+--- > make (B<>f<>g<>h) (f <> (g <> h))
 --- will return
 --- > S <> (K <> S) <> K
 --- Hence,
@@ -72,21 +85,15 @@ v `elimination` x  = case x of
             V s         
                 | s == v    = identity
                 | otherwise = (kestrel <> x)
-            App y (V s) | s == v,
-                v `notElem` vars y = y
-            y | v `notElem` vars y = (kestrel <> y)
-            App a b                = (starling <> a' <> b') where
-                a' = v `elimination` a
-                b' = v `elimination` b
+            App y (V s) 
+                | s == v,
+                  v `notElem` vars y = y
+            App a b
+                | v `notElem` vars x = (kestrel <> x)                
+                | otherwise = (starling <> a' <> b') where
+                    a' = v `elimination` a
+                    b' = v `elimination` b
+            -- x is not a variable and not of the form xy
+            -- This means that v cannot occur in it, hence rule 2
+            _ = kestrel <> x
                         
--- nice tree ski = fold unsubst ski defs where
---     defs = reverse (deporder tree)
---     unsubst (p@P{}) _ = p
---     unsubst (v@V{}) _ = v
---     unsubst (c@C{}) _ = c
---     unsubst (x@App a b) def 
---         | x == Def.bird def, length k < length (show x) = C k
---         | otherwise = App (unsubst a def) (unsubst b def) 
---         where 
---             k = name def
-            
