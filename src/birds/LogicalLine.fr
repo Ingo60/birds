@@ -40,7 +40,7 @@ instance LogicalLineReader ConsoleReader where
                         | null sofar  -> return Nothing
                         | otherwise   -> return (Just sofar)
                     Just line -> do
-                        let r = sofar ++ line
+                        let r = sofar ++ (if length sofar > 0 then " " else "") ++ line
                             m = missing r
                         if m > 0
                         then next ("(" ++ show m ++ ") ") r
@@ -57,7 +57,7 @@ instance LogicalLineReader BufferedReader where
                         | null sofar  -> return Nothing
                         | otherwise   -> return (Just sofar)
                     Just line -> do
-                        let r = sofar ++ " " ++ line
+                        let r = sofar ++ (if length sofar > 0 then " " else "") ++ line
                             m = missing r
                         if m > 0
                         then next r
