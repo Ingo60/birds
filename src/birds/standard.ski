@@ -39,6 +39,15 @@ let (.-' gab)(.z a0(.z ba(g(.p a)(.p b))))
 let -(Y.-')
 let (.*' gab)(.z a0(.z(.p a)b(+b(g(.p a)b))))
 let *(Y.*')
+echo Relational birds = < >
+let (.=' rab)(.z a(.z b)(.z b.f(r(.p a)(.p b))))
+let =(Y.=')
+let (.<' rab)(.z a(B~.z b)(.z b.f(r(.p a)(.p b))))
+let <(Y.<')
+let (>ab)(<ba)
+### division
+let (./' rnab)(<abn(r(.s n)(-ab)b))
+let (/ab) (.z b .f (Y./' 0ab))
 ###
 echo ² is square, ³ is cube.
 let (²n)(*nn)
@@ -53,9 +62,3 @@ echo .even, .odd
 let (.even' gn)(.z n.t(.z(.p n).f(g(.p(.p n)))))
 let .even(Y.even')
 let .odd(B~.even)
-echo Relational birds = < >
-let (.=' rab)(.z a(.z b)(.z b.f(r(.p a)(.p b))))
-let =(Y.=')
-let (.<' rab)(.z a(B~.z b)(.z b.f(r(.p a)(.p b))))
-let <(Y.<')
-let (>ab)(<ba)
