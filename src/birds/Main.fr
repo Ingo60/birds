@@ -1,6 +1,7 @@
 --- The interpreter for *birds*, a small language on top of the SKI calculus
 module birds.Main where
 
+import Java.Net(URL, URLArray, URLClassLoader)
 import Data.List hiding(insert, lookup, delete, union)
 import Data.TreeMap
 import birds.Ski
@@ -26,7 +27,10 @@ main xs = do
                                 last  = Tree.empty,
                                 dbpath = if null xs then "birds.ski" else head xs}
         
-        loadFile ref (if null xs then "birds.ski" else (head xs))
+        
+        loadResource ref "birds/standard.ski"
+        unless (null xs) do
+            loadResource ref (head xs)
         
         mapM_ println [
             "",
@@ -55,14 +59,33 @@ loadFile ref "" = ref.get >>= loadFile ref . Global.dbpath
 loadFile ref fn = do
             rdr <- openReader fn
             IORef.modify Global.{dbpath = fn} ref
-            work rdr `finally` (rdr.close >> stderr.println ("Loaded " ++ fn))
+            workBR ref rdr `finally` do 
+                rdr.close
+                stderr.println ("Loaded file " ++ fn)
         `catch` notfound fn
-    where
-        work rdr = do
-            logical <- getNext rdr
-            case logical of
-                Nothing -> return ()
-                Just s  -> oneLine ref s >> work rdr
+
+workBR ref rdr = do
+    logical <- getNext rdr
+    case logical of
+        Nothing -> return ()
+        Just s  | null s    = workBR ref rdr
+                | otherwise = oneLine ref s >> workBR ref rdr
+
+loadResource ref name = do
+        thiscl <- ClassLoader.current
+        urls   <- URLArray.fromListST []
+        loader <- URLClassLoader.new urls thiscl
+        mbUrl  <- loader.getResource name
+        case mbUrl of
+            Nothing -> loadFile ref name
+            Just url -> do
+                stream <- url.openStream
+                isr <- InputStreamReader.new stream "UTF-8"
+                rdr <- BufferedReader.new isr
+                workBR ref rdr `finally` do
+                    rdr.close
+                    stderr.println ("Loaded resource " ++ name)
+
 
         
     
@@ -113,18 +136,6 @@ cmdEvalWith ref what reply = do
             Right parsed -> do 
                 let expr = subst state.last parsed
                 case expr of
-                    -- new definition
-                    (App (App (C ":") left) right) -> do
-                        case def state.birds left right of
-                            Left s -> stderr.println ("ERROR: " ++ s)
-                            Right d -> newdef ref d
-                    -- 'a' elimination x
-                    (App (App (C "\\") (V c)) x) -> do
-                        let result = c `elimination` x
-                        println result
-                        setLast ref result
-                        return ()
-                    -- just eval
                     x   -> do
                         let result = unE (what (subst state.birds x))
                         println (maybe (show result) show (numeric result))
@@ -219,6 +230,29 @@ cmdElim ref s  = do
 
 cmdComment ref _ = return ()
 cmdEcho    ref s = println s
+
+cmdHelp _ _ = mapM_ println [
+        "Commands: ",
+        "    parse expr     Parse expression and show the result.",
+        "    step  expr     Perform a single evaluation step, and show the result.",
+        "    eval  expr     Evaluate an expression and show the result.",
+        "",
+        "When the expression is missing, last printed expression is used.",
+        "The last printed expression can called explicitly by typing _",
+        "An empty line is equivalent to 'step _'",
+        "",
+        "    list C         List definition of bird C.",
+        "    list           List definitions of all birds.",
+        "    load filename  Load a file.",
+        "    load           Load the last file.",
+        "    save filename  Save definitions to file.",
+        "    save           Save definitions to last file.",
+        "",
+        "    let (Pabc) (expr)  define bird.",
+        "    elim v (expr)  Eliminate variable v from expression.",
+        "",
+        "Anything else is taken as an expression, which is evaluated and printed.", 
+    ]
  
 commands = [
     (´^step\s*´, cmdStep),
@@ -226,13 +260,14 @@ commands = [
     (´^eval\s*´, cmdEval),
     (´^r(aw)?\s*´,  cmdRaw),
     (´^li(st)?\s*´, cmdList),
-    (´^lo(ad)?\s*´,  loadFile),
+    (´^lo(ad)?\s*´,  loadResource),
     (´^s(ave)?\s*´,  saveFile),
     (´^n(umber)?\s*´, numericPrint),
     (´^let\s*´, cmdLet),
     (´^elim(inate)?\s*´, cmdElim),
     (´^###\s*´, cmdComment),
     (´^echo\s*´, cmdEcho),
+    (´^h(elp)?\s*´, cmdHelp),
     ]
 
 parseCommand "" = (cmdStep, "")
