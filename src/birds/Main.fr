@@ -38,7 +38,7 @@ main xs = do
             "Type CTRL-D to end this session.",
             "",
             ] 
-        forever (interaction ref) 
+        forever (interaction ref {-`catch` stackovl-}) 
                 `catch` eof
                 `catch` ioex
                 `finally` println "See you again."
@@ -125,9 +125,14 @@ cmdEval  ref   = cmdEvalWith ref eval
 cmdStep  ref s = cmdEvalWith ref step s 
 cmdParse ref   = cmdEvalWith ref id
 
+data StackOverflow = pure native java.lang.StackOverflowError
+derive Exceptional StackOverflow 
+    
+
+
 cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
 cmdEvalWith ref what "" = getLast ref >>= cmdEvalWith ref what . show
-    
+
 cmdEvalWith ref what reply = do
     t0 <- System.currentTimeMillis ()
     state <- ref.get  
@@ -138,12 +143,20 @@ cmdEvalWith ref what reply = do
                 case expr of
                     x   -> do
                         let result = unE (what (subst state.birds x))
-                        println (maybe (show result) show (numeric result))
+                        case numeric result of
+                            Just n  -> println n
+                            Nothing -> println result   
+                        -- println (maybe (show result) show (numeric result))
                         setLast ref result
                         t1 <- System.currentTimeMillis ()
                         let dur = (t1-t0).double / 1000
                         when (dur > 1) do
                              stderr.println("Duration: " ++ show dur)
+                      -- `catch`  stackovl 
+
+
+stackovl :: StackOverflow -> IO ()
+stackovl _ = println ("infinite expression?")
                 -- return ()
 
 newdef :: IORef Global -> Def -> IO ()
