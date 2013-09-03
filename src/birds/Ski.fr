@@ -22,6 +22,8 @@ data SKI = P Char ([SKI] -> (SKI|[SKI]))    --- primitive combinator
 primitives = Tree.fromList [('S', starling), ('K', kestrel), ('I', identity),
                     ('V', vireo),
                     ('Y', fix),
+                    ('T', thrush),
+                    ('B', bluebird)
                 ]
 primitive c = c `elem` keys primitives
 isPrim s = length s == 1 && primitive (String.charAt s 0)
@@ -33,8 +35,10 @@ identity = P 'I' i where
 starling = P 'S' s where
     s (f:g:x:xs) = let !xx = mkE x in Right (f : xx : g<>xx : xs)
     s xs         = (Left . unflat) (starling : xs)
-    mkE (e@E _)  = e
-    mkE x        = E (eval x)
+
+mkE (e@E _)  = e
+mkE (e@App (P 'Y' _) _) = e
+mkE x        = E (eval x)
 
 unE (E x)     = unE x
 unE (App a b) = (unE a) <> (unE b)
@@ -52,6 +56,14 @@ fix = P 'Y' y where
     y (f:xs) = Right (f:fix <> f:xs)
     y xs     = (Left . unflat) (fix : xs)
 
+thrush = P 'T' t where
+    t (x:y:xs) = Right (y:x:xs)
+    t xs       = (Left . unflat) (thrush : xs)
+
+bluebird = P 'B' b where
+    b (f:g:h:xs) = Right (f:g<>h:xs)
+    b xs         = (Left . unflat) (bluebird : xs)
+     
 infixl 7 `<>`
 
 {-- 
