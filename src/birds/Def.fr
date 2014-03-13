@@ -16,6 +16,7 @@ module birds.Def where
 import Data.TreeMap
 import Data.List(sortBy)
 import birds.Ski
+import Data.Graph as G
 
 data Def = D { left, right, bird :: SKI }
 
@@ -49,10 +50,15 @@ def tree left right = case fl of
         isVar V{} = true
         isVar _   = false
 
-depends D{right} = combinators right
+depends x = (name x, combinators x.right)
 name    D{left}  = s where C s = head (flat left)
 --- definitions in dependency order
-deporder tree    = (catMaybes . map tree.lookupS . concat . tsort depends) tree
+deporder tree    = (catMaybes 
+    . map tree.lookupS 
+    . concat 
+    . G.stronglyConnectedComponents 
+    . map depends 
+    . Tree.values) tree
 -- dependsOn def s  = s `elem` depends def 
 
 --- Substitute constructor names with 'SKI' expressions

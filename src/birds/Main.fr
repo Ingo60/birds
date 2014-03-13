@@ -58,7 +58,7 @@ loadFile :: IORef Global -> String -> IO ()
 loadFile ref "" = ref.get >>= loadFile ref . Global.dbpath
 loadFile ref fn = do
             rdr <- openReader fn
-            IORef.modify Global.{dbpath = fn} ref
+            ref.modify Global.{dbpath = fn} 
             workBR ref rdr `finally` do 
                 rdr.close
                 stderr.println ("Loaded file " ++ fn)
@@ -73,7 +73,7 @@ workBR ref rdr = do
 
 loadResource ref name = do
         thiscl <- ClassLoader.current
-        urls   <- URLArray.fromListST []
+        urls   <- JArray.fromList []
         loader <- URLClassLoader.new urls thiscl
         mbUrl  <- loader.getResource name
         case mbUrl of
@@ -100,7 +100,7 @@ saveFile ref fn = do
             mapM_ (pr.println . show) ((map undef . deporder) state.birds)
             pr.close
             stderr.println ("Saved to " ++ fn)
-            IORef.modify Global.{dbpath = fn} ref
+            ref.modify Global.{dbpath = fn} 
         `catch` notfound fn
     where
         undef D{left,right} = C "let " <> left <> right
@@ -119,7 +119,7 @@ setLast :: IORef Global -> SKI -> IO ()
 setLast ref bird = do
     state <- ref.get
     let d = D{left=C "_", right=identity, bird}
-    IORef.modify Global.{last <- insertkv "_" d} ref    
+    ref.modify Global.{last <- insertkv "_" d}     
             
 cmdEval  ref   = cmdEvalWith ref eval
 cmdStep  ref s = cmdEvalWith ref step s 
@@ -174,7 +174,7 @@ newdef ref d = do
         replace d (o:os)  
             | name o == name d = d : os
             | otherwise = o : replace d os 
-    IORef.modify Global.{birds=newbirds} ref
+    ref.modify Global.{birds=newbirds} 
     setLast ref d.bird
     
 
