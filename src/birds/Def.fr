@@ -16,7 +16,9 @@ module birds.Def where
 import Data.TreeMap
 -- import Data.List(sortBy)
 import birds.Ski
+
 import Data.Graph(stronglyConnectedComponents tsort)
+
 
 data Def = D { left, right, bird :: SKI }
 
@@ -127,7 +129,7 @@ v `elimination` x  = case x of
                   v `notElem` vars y = y
             App a b
                 | v `notElem` vars x = (kestrel <> x)                
-                | otherwise = (starling <> a' <> b') where
+                | otherwise = (starling <> a') <> b' where
                     a' = v `elimination` a
                     b' = v `elimination` b
             -- x is not a variable and not of the form xy

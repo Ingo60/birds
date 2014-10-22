@@ -73,7 +73,7 @@ workBR ref rdr = do
 
 loadResource ref name = do
         thiscl <- ClassLoader.current
-        urls   <- URLArray.fromList []
+        urls   <- JArray.fromList []
         loader <- URLClassLoader.new urls thiscl
         mbUrl  <- loader.getResource name
         case mbUrl of
