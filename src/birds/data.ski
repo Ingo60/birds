@@ -1,0 +1,23 @@
+echo Tuples are constructed with Vab and taken apart with .fst .snd
+let (.fst t)  (t.t)
+let (.snd t)  (t.f)
+###
+echo Unions are constructed with (V.t x) or (V.f y)
+echo and taken apart with .either
+echo .either f g (V.t x) results in fx
+echo .either f g (V.f y) results in gy
+let (.either fgh)(.fst h (f(.snd h)) (g(.snd h)))
+###
+echo Lists are unions where the .t case is the empty list
+echo and the .f case is a tuple of a list element and the tail list.
+let .empty      (V.t.f)
+let (:ab)       (V.f (Vab))
+let (.null x)   (.either (K.t) (K.f) x)
+let (.head x)   (B.fst.snd x)
+let (.tail x)   (B.snd.snd x)
+let (.len gnx)  (.either (Kn) (B(g(.s n)).snd)x)
+let (.length)   (Y .len 0)
+let (.fold' gfax)   (.either (Ka) (B(gf(fa(.head x))).snd) x)
+let (.fold fax) (Y .fold' f a x)
+let (.drop' gnx) (.z n .empty (.null x .empty ( g(.p n)(.tail x) )))
+let .drop (Y.drop')
