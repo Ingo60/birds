@@ -3,7 +3,7 @@
 
 module birds.LogicalLine where
 
-import Data.List
+-- import Data.List
 
 --- we use JLine package for terminal input
 data ConsoleReader = mutable native jline.ConsoleReader where

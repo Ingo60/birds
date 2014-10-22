@@ -4,7 +4,7 @@ module birds.Ski where
 import Data.List (sort, uniq)
 import Data.TreeMap
 import Data.Monoid (Semigroup(mappend))
-import frege.lib.ForkJoin (par)
+-- import frege.lib.ForkJoin (par)
 
 {--
     Representation of SKI expressions with variables and constants.
