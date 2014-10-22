@@ -241,6 +241,27 @@ cmdElim ref s  = do
                         _ -> stderr.println ("expected variable, found " ++ show left)
                 _ -> stderr.println ("Not well form, need 'eliminate v (expr)'") 
 
+cmdDElim :: IORef Global -> String -> IO ()
+cmdDElim ref s  = do
+    state <- ref.get
+    case parse (".elim " ++ s) of
+        Left msg  -> stderr.println ("SYNTAX: " ++ msg)
+        Right parsed -> do 
+            let expr = subst state.last parsed
+            case expr of
+                -- new definition
+                (App (App (C ".elim") left) right) -> do
+                    case left of
+                        V c | all aristocratic (prims right) -> do 
+                                let result = c `delimination` right
+                                println result
+                                setLast ref result
+                                return ()
+                            | otherwise = stderr.println("expr is not aristocratic")
+                        _ -> stderr.println ("expected variable, found " ++ show left)
+                _ -> stderr.println ("Not well form, need 'eliminate v (expr)'") 
+
+
 cmdComment ref _ = return ()
 cmdEcho    ref s = println s
 
@@ -262,7 +283,8 @@ cmdHelp _ _ = mapM_ println [
         "    save           Save definitions to last file.",
         "",
         "    let (Pabc) (expr)  define bird.",
-        "    elim v (expr)  Eliminate variable v from expression.",
+        "    elim  v (expr)  Eliminate variable v from expression.",
+        "    delim v (expr)  Distingueshed elimination of v from expression.",
         "",
         "Anything else is taken as an expression, which is evaluated and printed.", 
     ]
@@ -278,6 +300,7 @@ commands = [
     (´^n(umber)?\s*´, numericPrint),
     (´^let\s*´, cmdLet),
     (´^elim(inate)?\s*´, cmdElim),
+    (´^delim(inate)?\s*´, cmdDElim),
     (´^###\s*´, cmdComment),
     (´^echo\s*´, cmdEcho),
     (´^h(elp)?\s*´, cmdHelp),

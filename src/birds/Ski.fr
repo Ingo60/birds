@@ -23,10 +23,12 @@ primitives = Tree.fromList [('S', starling), ('K', kestrel), ('I', identity),
                     ('V', vireo),
                     ('Y', fix),
                     ('T', thrush),
-                    ('B', bluebird)
+                    ('B', bluebird),
+                    ('C', cardinal),
                 ]
 primitive c = c `elem` keys primitives
 isPrim s = length s == 1 && primitive (String.charAt s 0)
+aristocratic c = c `elem` unpacked "SIVYTBC"
 
 identity = P 'I' i where
     i [] = Left identity
@@ -63,6 +65,10 @@ thrush = P 'T' t where
 bluebird = P 'B' b where
     b (f:g:h:xs) = Right (f:g<>h:xs)
     b xs         = (Left . unflat) (bluebird : xs)
+
+cardinal = P 'C' c where
+    c (f:a:b:xs) = Right (f:b:a:xs)
+    c xs         = (Left . unflat) (cardinal : xs)
      
 infixl 7 `<>`
 
@@ -115,6 +121,11 @@ vars _ = []
 combinators (C s) = [s]
 combinators (App a b) = combinators a ++ combinators b
 combinators _ = []
+
+--- get an unordered list of primitives that occur in an expression
+prims (P c _)   = [c]
+prims (App a b) = prims a ++ prims b
+prims _         = []
 
 
 {-- 

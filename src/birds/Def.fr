@@ -35,6 +35,9 @@ def tree left right = case fl of
                                             ++ joined ", " (map display bad))
             | !(null cr)           = Left ("Right hand side names unknown birds: "
                                             ++ joined ", " (map display cr))
+            | all (aristocratic) (prims sr),
+              all (`elem`  vr) vl 
+                        = Right D{left, right, bird = dmake left sr}
             | otherwise = Right D{left, right, bird = make left sr}
         _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name and not a basic bird.") 
     where
@@ -73,6 +76,39 @@ subst tree x = x
 make (C c) ski = ski
 make (App a (V b)) ski = make a (b `elimination` ski)
 make def _ = error ("not well formed: " ++ show def)
+
+
+--- same as make for 'aristocratic' birds
+dmake (C c) expr = expr
+dmake (App a (V b)) ski = dmake a (b `delimination` ski)
+dmake def _ = error ("not well formed: " ++ show def)
+
+{--
+    Distinguished elimination for aristocratic birds.
+    
+    1.  I is a v elimination for v, becaue Iv = v
+    2.  If x does not contain v, then x is a v-elimination of Yv, becaue Yv=Yv
+    3.  If v does occur in a <> b, there are 3 subcases:
+        a) Sa'b' if it occurs in both
+        b) Bab' if it occurs in b only
+        C) Ca'b if it occurs in a only
+    -}
+v `delimination` x = case x of
+        V s | s == v        = identity
+            | otherwise     = x
+        App a (V b) 
+            | b == v        = a
+        App a b
+            | left, right   = starling <> a' <> b'
+            | right         = bluebird <> a  <> b'
+            | left, 
+              P 'I'_ <- a'  = thrush <> b
+            | left          = cardinal <> a' <> b where
+                left  = v `elem` vars a
+                right = v `elem` vars b
+                a'    = v `delimination` a
+                b'    = v `delimination` b
+        _                   = x
 
 {--
     1.  I is a v elimination for v, becaue Iv = v
