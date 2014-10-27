@@ -38,9 +38,10 @@ def tree left right = case fl of
                                             ++ joined ", " (map display bad))
             | !(null cr)           = Left ("Right hand side names unknown birds: "
                                             ++ joined ", " (map display cr))
-            | all (aristocratic) (prims sr),
-              all (`elem`  vr) vl 
-                        = Right D{left, right, bird = dmake left sr}
+            --| (not . null . prims) sr, 
+            --  all (aristocratic) (prims sr),
+            --  all (`elem`  vr) vl 
+            --            = Right D{left, right, bird = dmake left sr}
             | otherwise = Right D{left, right, bird = make left sr}
         _ -> Left ("Left hand side must be of the form Xabc, where X is a constructor name and not a basic bird.") 
     where
@@ -90,7 +91,7 @@ dmake def _ = error ("not well formed: " ++ show def)
     Distinguished elimination for aristocratic birds.
     
     1.  I is a v elimination for v, becaue Iv = v
-    2.  If x does not contain v, then x is a v-elimination of Yv, becaue Yv=Yv
+    2.  If x does not contain v, then x is a v-elimination of xv, becaue xv=xv
     3.  If v does occur in a <> b, there are 3 subcases:
         a) Sa'b' if it occurs in both
         b) Bab' if it occurs in b only
@@ -100,18 +101,19 @@ v `delimination` x = case x of
         V s | s == v        = identity
             | otherwise     = x
         App a (V b) 
-            | b == v        = a
+            | b == v,
+              v `notElem` vars a        = a
         App a b
-            | left, right   = starling <> a' <> b'
-            | right         = bluebird <> a  <> b'
+            | left, right   = (starling <> a') <> b'
+            | right         = (bluebird <> a)  <> b'
             | left, 
               P 'I'_ <- a'  = thrush <> b
-            | left          = cardinal <> a' <> b where
+            | left          = (cardinal <> a') <> b where
                 left  = v `elem` vars a
                 right = v `elem` vars b
                 a'    = v `delimination` a
                 b'    = v `delimination` b
-        _                   = x
+        _                   = v `elimination` x
 
 {--
     1.  I is a v elimination for v, becaue Iv = v
