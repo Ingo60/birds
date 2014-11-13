@@ -205,10 +205,11 @@ numeric x = if skionly then skinum x 0 else num' x 0 where
     num' (App (App (P 'V' _) (P 'K' _)) (P 'K' _)) !n = Just n
     num' x n = Nothing
     skinum :: SKI -> Integer -> Maybe Integer
-    skinum x i = case eval (App x kestrel) of
+    skinum (x@App{}) i = case eval (App x kestrel) of
         (P 'K' _) ->  Just i
         (App (P 'K' _) (P 'I' _)) -> skinum (App x (App kestrel identity)) (i+1)
-        _ -> Nothing      
+        _ -> Nothing
+    skinum _ _ = Nothing      
  
 cmdLet :: IORef Global -> String -> IO ()
 cmdLet ref s  = do
