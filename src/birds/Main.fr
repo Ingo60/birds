@@ -28,7 +28,8 @@ main xs = do
                                 dbpath = if null xs then "birds.ski" else head xs}
         
         
-        loadResource ref "birds/standard.ski"
+        unless (skionly) do
+            loadResource ref "birds/standard.ski"
         unless (null xs) do
             loadResource ref (head xs)
         

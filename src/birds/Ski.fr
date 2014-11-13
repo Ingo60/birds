@@ -19,7 +19,10 @@ data SKI = P Char ([SKI] -> (SKI|[SKI]))    --- primitive combinator
         | App SKI SKI                       --- call out second bird to first
         | E SKI                             --- shared 
 
-primitives = Tree.fromList [('S', starling), ('K', kestrel), ('I', identity),
+skionly = maybe false (const true) (System.getProperty "ski.pure")
+takep = if skionly then take 3 else id
+
+primitives = Tree.fromList $ takep [('S', starling), ('K', kestrel), ('I', identity),
                     ('V', vireo),
                     ('Y', fix),
                     ('T', thrush),
@@ -28,7 +31,7 @@ primitives = Tree.fromList [('S', starling), ('K', kestrel), ('I', identity),
                 ]
 primitive c = c `elem` keys primitives
 isPrim s = length s == 1 && primitive (String.charAt s 0)
-aristocratic c = c `elem` unpacked "SIVYTBC"
+aristocratic c = primitive c && c `elem` unpacked "SIVYTBC"
 
 identity = P 'I' i where
     i [] = Left identity
