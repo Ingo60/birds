@@ -104,7 +104,7 @@ saveFile ref fn = do
             ref.modify Global.{dbpath = fn} 
         `catch` notfound fn
     where
-        undef D{left,right} = C "let " <> left <> right
+        undef D{left,right} = (C "let " <> left) <> right
 
 interaction :: IORef Global -> IO ()
 interaction ref = ref.get 
@@ -205,7 +205,7 @@ numeric x = if skionly then skinum x 0 else num' x 0 where
     num' (App (App (P 'V' _) (P 'K' _)) (P 'K' _)) !n = Just n
     num' x n = Nothing
     skinum :: SKI -> Integer -> Maybe Integer
-    skinum (x@App{}) i = case eval (App x kestrel) of
+    skinum (x@App{}) !i = case eval (App x kestrel) of
         (P 'K' _) ->  Just i
         (App (P 'K' _) (P 'I' _)) -> skinum (App x (App kestrel identity)) (i+1)
         _ -> Nothing
