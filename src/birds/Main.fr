@@ -199,11 +199,16 @@ numericPrint ref "" = getLast ref >>= println . numeric
 numericPrint ref s  = cmdEval ref s >> getLast ref >>= println . numeric
 
 numeric :: SKI -> Maybe Integer
-numeric x = num' x 0 where
+numeric x = if skionly then skinum x 0 else num' x 0 where
     num' :: SKI -> Integer -> Maybe Integer
     num' (App (App (P 'V' _) (App (P 'K' _) (P 'I' _))) pred) !n = num' pred (n+1)
     num' (App (App (P 'V' _) (P 'K' _)) (P 'K' _)) !n = Just n
-    num' x n = Nothing    
+    num' x n = Nothing
+    skinum :: SKI -> Integer -> Maybe Integer
+    skinum x i = case eval (App x kestrel) of
+        (P 'K' _) ->  Just i
+        (App (P 'K' _) (P 'I' _)) -> skinum (App x (App kestrel identity)) (i+1)
+        _ -> Nothing      
  
 cmdLet :: IORef Global -> String -> IO ()
 cmdLet ref s  = do
