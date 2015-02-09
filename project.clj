@@ -3,14 +3,20 @@
   :url "https://github.com/Ingo60/birds"
   :license {:name "BSD 2 clause"
             :url "https://github.com/Ingo60/birds/blob/master/LICENSE"}
-  ; The following is more or less fixed
-  ; You may adapt the frege compiler version
-  :dependencies [;; [org.clojure/clojure "1.6.0"]
+  :dependencies [;; Uncomment the following line if there is clojure code
+                   ;; [org.clojure/clojure "1.6.0"]
+
                  ;; need to depend on Frege for runtime:
+                 ;; You may adapt the frege compiler version
                  [com.theoryinpractise.frege/frege "3.22.324-g630677b"]
-				 [jline/jline "1.0"]]
+
+                 ;; put here what is needed in addition
+                 [jline/jline "1.0"]]
+
+  ;; A MUST, this is the plugin that makes all this possible
   :plugins [[lein-fregec "3.22.324"]]
-  ; Good: The java source can be in the same directory as the frege stuff!
+
+  ;; Good: The java source can be in the same directory as the frege stuff!
   :java-source-paths ["src"]
   :frege-source-paths ["src"]
   :target-path "bin"
