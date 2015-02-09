@@ -8,7 +8,7 @@
 
                  ;; need to depend on Frege for runtime:
                  ;; You may adapt the frege compiler version
-                 [com.theoryinpractise.frege/frege "3.22.324-g630677b"]
+                 [com.theoryinpractise.frege/frege "3.22.367-g2737683"]
 
                  ;; put here what is needed in addition
                  [jline/jline "1.0"]]
