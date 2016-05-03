@@ -4,6 +4,7 @@ module birds.Ski where
 import Data.List (sort, uniq)
 import Data.TreeMap
 import Data.Monoid (Semigroup(mappend))
+
 -- import frege.lib.ForkJoin (par)
 
 {--
@@ -22,7 +23,7 @@ data SKI = P Char ([SKI] -> (SKI|[SKI]))    --- primitive combinator
 skionly = maybe false (const true) (System.getProperty "ski.pure")
 takep = if skionly then take 3 else id
 
-primitives = Tree.fromList $ takep [('S', starling), ('K', kestrel), ('I', identity),
+primitives = TreeMap.fromList $ takep [('S', starling), ('K', kestrel), ('I', identity),
                     ('V', vireo),
                     ('Y', fix),
                     ('T', thrush),
@@ -260,7 +261,7 @@ instance Show SKI where
     showsub (e@E{})     = "(" ++ show e   ++ ")"
     showsub ski = show ski 
     
-instance Semigroup (Semigroup b) => (a|b) where
+instance (Semigroup b) => Semigroup (a|b) where
     mappend (left@Left l) _          = left
     mappend (Right _) (left@Left  b) = left
     mappend (Right a) (Right b)      = Right (a `mappend` b) 
@@ -271,7 +272,7 @@ instance Show Token
         show LPAR = "("
         show RPAR = ")"
         show (Atom x) = show x
-        showList ts ss = concatMap show ts ++ ss
+        showList ts ss = concat (map show ts) ++ ss
 
 --- tell if character is allowed as suffix?
 noDelimitter c = c != ' ' && c != '.' && c != '(' && c != ')' 

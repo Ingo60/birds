@@ -23,8 +23,8 @@ main xs = do
         console.addCompletor complet
         -- console.setPrompt "ski> "
         ref     <- IORef.new St{console,  
-                                birds = Tree.empty,
-                                last  = Tree.empty,
+                                birds = TreeMap.empty,
+                                last  = TreeMap.empty,
                                 dbpath = if null xs then "birds.ski" else head xs}
         
         
@@ -74,7 +74,7 @@ workBR ref rdr = do
 
 loadResource ref name = do
         thiscl <- ClassLoader.current
-        urls   <- JArray.fromList []
+        urls   <- arrayFromListST []
         loader <- URLClassLoader.new urls thiscl
         mbUrl  <- loader.getResource name
         case mbUrl of
@@ -114,13 +114,13 @@ interaction ref = ref.get
 
 getLast :: IORef Global -> IO SKI
 getLast ref =  ref.get 
-    >>= return . maybe identity Def.bird . flip Tree.lookupS "_" . Global.last
+    >>= return . maybe identity Def.bird . flip TreeMap.lookupS "_" . Global.last
 
 setLast :: IORef Global -> SKI -> IO ()
 setLast ref bird = do
     state <- ref.get
     let d = D{left=C "_", right=identity, bird}
-    ref.modify Global.{last <- insertkv "_" d}     
+    ref.modify Global.{last <- insert "_" d}     
             
 cmdEval  ref   = cmdEvalWith ref eval
 cmdStep  ref s = cmdEvalWith ref step s 
@@ -166,7 +166,7 @@ newdef ref d = do
     let s = name d
         newbirds = case state.birds.lookupS s of
             Nothing -> state.birds.insert s d
-            Just _  -> (fold remake Tree.empty  . replace d . deporder) state.birds
+            Just _  -> (fold remake TreeMap.empty  . replace d . deporder) state.birds
         remake :: DefTree -> Def -> DefTree
         remake tree d  = case def tree d.left d.right of
             Right d -> tree.insert (name d) d 
@@ -316,7 +316,7 @@ commands = [
 parseCommand "" = (cmdStep, "")
 parseCommand s = try commands where
     try ((m,x):ms) 
-        | s ~ m =  (x, (m.matcher s).replaceFirst "")
+        | s ~ m =  (x, s.replaceFirst m "")
         | otherwise = try ms 
     try [] = (cmdEval, s) 
 
