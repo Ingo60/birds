@@ -8,13 +8,13 @@
 
                  ;; need to depend on Frege for runtime:
                  ;; You may adapt the frege compiler version
-                 [com.theoryinpractise.frege/frege "3.22.367-g2737683"]
+                 ;;[com.theoryinpractise.frege/frege "3.24-7.30"]
 
                  ;; put here what is needed in addition
                  [jline/jline "1.0"]]
 
   ;; A MUST, this is the plugin that makes all this possible
-  :plugins [[lein-fregec "3.22.324"]]
+  :plugins [[lein-fregec "3.23.450"]]
 
   ;; Good: The java source can be in the same directory as the frege stuff!
   :java-source-paths ["src"]

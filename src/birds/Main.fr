@@ -16,7 +16,7 @@ data Global = St {
         birds, last :: DefTree,
         dbpath :: String        -- where to save stuff
     }
-            
+
 main xs = do
         console <- ConsoleReader.new ()
         complet <- ParensCompletor.new ()
@@ -26,13 +26,13 @@ main xs = do
                                 birds = TreeMap.empty,
                                 last  = TreeMap.empty,
                                 dbpath = if null xs then "birds.ski" else head xs}
-        
-        
+
+
         unless (skionly) do
             loadResource ref "birds/standard.ski"
         unless (null xs) do
             loadResource ref (head xs)
-        
+
         mapM_ println [
             "",
             "Enter expressions or bird definitions or help for a command list.",
@@ -122,19 +122,19 @@ setLast ref bird = do
     let d = D{left=C "_", right=identity, bird}
     ref.modify Global.{last <- insert "_" d}     
             
-cmdEval  ref   = cmdEvalWith ref eval
-cmdStep  ref s = cmdEvalWith ref step s 
-cmdParse ref   = cmdEvalWith ref id
+cmdEval  ref   = cmdEvalWith ref eval false
+cmdStep  ref   = cmdEvalWith ref step false 
+cmdParse ref   = cmdEvalWith ref id false
 
 data StackOverflow = pure native java.lang.StackOverflowError
 derive Exceptional StackOverflow 
     
 
 
-cmdEvalWith :: IORef Global -> (SKI -> SKI) -> String -> IO ()
-cmdEvalWith ref what "" = getLast ref >>= cmdEvalWith ref what . show
+cmdEvalWith :: IORef Global -> (SKI -> SKI) -> Bool -> String -> IO ()
+cmdEvalWith ref what numonly "" = getLast ref >>= cmdEvalWith ref what numonly . show
 
-cmdEvalWith ref what reply = do
+cmdEvalWith ref what numonly reply = do
     t0 <- System.currentTimeMillis ()
     state <- ref.get  
     case parse reply of
@@ -144,9 +144,12 @@ cmdEvalWith ref what reply = do
                 case expr of
                     x   -> do
                         let result = unE (what (subst state.birds x))
-                        case numeric result of
+                        let num | not numonly && skionly = Nothing
+                                | otherwise = numeric result
+                        case num of
                             Just n  -> println n
-                            Nothing -> println result   
+                            Nothing | numonly   -> println ("not a number") 
+                                    | otherwise -> println result
                         -- println (maybe (show result) show (numeric result))
                         setLast ref result
                         t1 <- System.currentTimeMillis ()
@@ -196,7 +199,7 @@ cmdRaw ref s  = cmdParse ref s >> getLast ref >>= println
  
 --- prints the expression as number
 numericPrint ref "" = getLast ref >>= println . numeric
-numericPrint ref s  = cmdEval ref s >> getLast ref >>= println . numeric
+numericPrint ref s  = cmdEvalWith ref eval true s 
 
 numeric :: SKI -> Maybe Integer
 numeric x = if skionly then skinum x 0 else num' x 0 where
@@ -209,7 +212,7 @@ numeric x = if skionly then skinum x 0 else num' x 0 where
         (P 'K' _) ->  Just i
         (App (P 'K' _) (P 'I' _)) -> skinum (App x (App kestrel identity)) (i+1)
         _ -> Nothing
-    skinum _ _ = Nothing      
+    skinum _ _ = Nothing
  
 cmdLet :: IORef Global -> String -> IO ()
 cmdLet ref s  = do

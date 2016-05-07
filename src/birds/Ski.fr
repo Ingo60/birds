@@ -223,7 +223,7 @@ step = reduce [] where
         Left result -> result
         Right ys    -> unflat ys
     reduce acc x                            = unflat (x:acc)
-            
+
 
 
 --- literal equality, does not take substitutions in account
@@ -247,20 +247,12 @@ instance Show SKI where
     show (E  x) = show (App (P 'E' (Right . id)) x)
     show app = showList ( flat app ) "" 
     showList [] _ = ""
-    showList (x:xs) _ = showsub x ++ space ++ showList xs ""
-        where 
-            dotted (C s) = (s.charAt 0) == '.'
-            dotted _     = false
-            cvp P{}      = true
-            cvp V{}      = true
-            cvp (C s)    = (s.charAt 0) != '.'
-            cvp _        = false
-            space        = if dotted x && !(null xs) && cvp (head xs) then " " else ""
-    
+    showList (x:xs) _ = joined "" (map showsub (x:xs))
     showsub (app@App{}) = "(" ++ show app ++ ")"
     showsub (e@E{})     = "(" ++ show e   ++ ")"
+    showsub (C s)       = if s.charAt 0 == '.' then s++" " else s
     showsub ski = show ski 
-    
+
 instance (Semigroup b) => Semigroup (a|b) where
     mappend (left@Left l) _          = left
     mappend (Right _) (left@Left  b) = left
@@ -276,7 +268,7 @@ instance Show Token
 
 --- tell if character is allowed as suffix?
 noDelimitter c = c != ' ' && c != '.' && c != '(' && c != ')' 
-                
+
 
 parse  = parse' . lex . unpacked  where
     lex [] = []
@@ -287,24 +279,24 @@ parse  = parse' . lex . unpacked  where
         | s == '(' = LPAR : lex xs
         | s == ')' = RPAR : lex xs
         | s == '.',                             -- allow .whatever
-            name  <- takeWhile noDelimitter xs,        
+            name  <- takeWhile noDelimitter xs,
             rest  <- dropWhile noDelimitter xs 
              = Atom (C (packed (s:name))) : lex rest
         | otherwise = Atom (C s.display) : lex xs
-    
-       
+
+
     parse' = state0 []
-    
+
+    state0 [] [] = Left "unexpected end of input" 
     state0 acc (Atom x:rest) = state0 (x:acc) rest
     state0 acc (LPAR:rest) = case state1 [] rest of
         Right (x, ts) = state0 (x:acc) ts
         Left err      = Left err
-    state0 acc (RPAR:rest) = Left "unexpected ')'"
-    state0 [] [] = Left "unexpected end of input" 
     state0 acc [] = Right (unflat (reverse acc))
-        
-    state1 acc [] = Left "missing ')'"
+    state0 acc (RPAR:rest) = Left "unexpected ')'"
+
     state1 [] (RPAR:xs) = Left "unexpected ')' right after '('"
+    state1 acc [] = Left "missing ')'"
     state1 acc (RPAR:xs) = Right (unflat (reverse acc), xs)
     state1 acc (Atom x:rest) = state1 (x:acc) rest
     state1 acc (LPAR:rest) = case state1 [] rest of
