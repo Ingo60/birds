@@ -8,11 +8,11 @@ import birds.Ski
 import birds.Def
 import birds.LogicalLine
 
-data ParensCompletor = mutable native birds.ParensCompletor where
-    native new :: () -> IO  ParensCompletor
+data ParensCompletor = native birds.ParensCompletor where
+    native new :: () -> IO  (MutableIO ParensCompletor)
 
 data Global = St {
-        console  :: ConsoleReader,
+        console  :: MutableIO ConsoleReader,
         birds, last :: DefTree,
         dbpath :: String        -- where to save stuff
     }
@@ -106,7 +106,7 @@ saveFile ref fn = do
     where
         undef D{left,right} = (C "let " <> left) <> right
 
-interaction :: IORef Global -> IO ()
+-- interaction :: IORef Global -> IO ()
 interaction ref = ref.get 
     >>= getNext . Global.console
     >>= maybe (throwIO (EOFException.new "EOF")) (oneLine ref)

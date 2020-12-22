@@ -6,17 +6,17 @@ module birds.LogicalLine where
 -- import Data.List
 
 --- we use JLine package for terminal input
-data ConsoleReader = mutable native jline.ConsoleReader where
-    native new :: () -> IO ConsoleReader throws IOException
-    native setPrompt setDefaultPrompt :: ConsoleReader -> String -> IO ()
-    native readLine  :: ConsoleReader -> IO (Maybe String) throws IOException
-                      | ConsoleReader -> String -> IO (Maybe String) throws IOException
-    native addCompletor :: ConsoleReader -> Completor -> IO Bool
+data ConsoleReader = native jline.ConsoleReader where
+    native new :: () -> IO (MutableIO ConsoleReader) throws IOException
+    native setPrompt setDefaultPrompt :: MutableIO ConsoleReader -> String -> IO ()
+    native readLine  :: MutableIO ConsoleReader -> IO (Maybe String) throws IOException
+                      | MutableIO ConsoleReader -> String -> IO (Maybe String) throws IOException
+    native addCompletor :: MutableIO ConsoleReader -> MutableIO Completor -> IO Bool
 
-data Completor = mutable native jline.Completor
+data Completor = native jline.Completor
 
 class LogicalLineReader rdr where
-    getNext :: rdr -> IO (Maybe String)
+    getNext :: (MutableIO rdr) -> IO (Maybe String)
 
 
 --- Tell the number of missing right parentheses
@@ -30,11 +30,11 @@ missing = miss 0 . unpacked
 
 
 instance LogicalLineReader ConsoleReader where
-    getNext :: ConsoleReader -> IO (Maybe String)
+    getNext :: MutableIO ConsoleReader -> IO (Maybe String)
     getNext cr = next "-> " ""
         where
             next prompt sofar = do 
-                input <- cr.readLine prompt
+                input <- cr.readLine prompt :: IO (Maybe String)
                 case input of
                     Nothing
                         | null sofar  -> return Nothing
@@ -51,7 +51,7 @@ instance LogicalLineReader BufferedReader where
     getNext cr = next ""
         where
             next sofar = do 
-                input <- cr.readLine
+                input <- cr.readLine :: IO (Maybe String)
                 case input of
                     Nothing
                         | null sofar  -> return Nothing
